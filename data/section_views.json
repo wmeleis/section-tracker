@@ -1,1 +1,28 @@
-{"views": []}
+{
+  "views": [
+    {
+      "id": "team_st_2plus_prior",
+      "name": "Special topics — 2+ prior offerings",
+      "team": true,
+      "state": {
+        "visibleCols": [
+          "course_code", "section", "title", "term", "college", "campus",
+          "instructional_method", "times_offered", "faculty_name",
+          "modality_resolved", "notes"
+        ],
+        "filters": {
+          "term": "", "college": "", "campus": "", "subject": "",
+          "modality": "", "resolved": "", "level": "", "search": ""
+        },
+        "tree": {
+          "type": "group",
+          "conj": "all",
+          "children": [
+            { "type": "rule", "field": "special_topics", "op": "in", "value": ["Y"] },
+            { "type": "rule", "field": "times_offered", "op": ">=", "value": "3" }
+          ]
+        }
+      }
+    }
+  ]
+}
