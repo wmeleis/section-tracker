@@ -103,6 +103,7 @@ async function load() {
   setStoreBadge(data.airtable);
   // hydrate team views (static: baked; local: API)
   await hydrateTeamViews(data);
+  initStarredIfNeeded();   // seed tiles from shipped starred:true views
   hideStaticOnlyHeader();
   populateFilters();
   // restore the last active view (if it still exists)
@@ -436,6 +437,7 @@ function _defaultRule(key){
 
 // ── View model ──────────────────────────────────────────────────────────────
 const _VIEWS_LS = 'sectrk-views-v1', _ACTIVE_LS = 'sectrk-active-view', _STARS_LS = 'sectrk-starred-v1';
+const _STARS_SEEN_LS = 'sectrk-starred-seen-v1';
 const SECTION_ALL_VIEW = { id:'all', name:'All sections', team:true, system:true,
   state:{ visibleCols:null, filters:{}, tree:null } };
 
@@ -451,6 +453,20 @@ function getViewById(id){ return getAllViews().find(v=>v.id===id) || null; }
 function getStarredIds(){ try { return new Set(JSON.parse(localStorage.getItem(_STARS_LS)||'[]')); } catch(_){ return new Set(); } }
 function setStarredIds(set){ try { localStorage.setItem(_STARS_LS, JSON.stringify([...set])); } catch(_){} }
 function toggleStar(id){ const s=getStarredIds(); s.has(id)?s.delete(id):s.add(id); setStarredIds(s); }
+// Seed stars from views shipped with `starred:true` (team views in the shared
+// file, baked into the static build) — so an admin-starred view appears as a
+// tile for EVERYONE on first sight. Tracked per-browser so a user's later
+// un-star sticks and isn't re-seeded on the next load.
+function initStarredIfNeeded(){
+  let seen; try { seen=new Set(JSON.parse(localStorage.getItem(_STARS_SEEN_LS)||'[]')); } catch(_){ seen=new Set(); }
+  const stars=getStarredIds(); let changed=false;
+  [...getTeamViews(), ...getPersonalViews()].forEach(v=>{
+    if(!v||!v.id||seen.has(v.id)) return;
+    if(v.starred) stars.add(v.id);
+    seen.add(v.id); changed=true;
+  });
+  if(changed){ setStarredIds(stars); try { localStorage.setItem(_STARS_SEEN_LS, JSON.stringify([...seen])); } catch(_){} }
+}
 
 function _isAdmin(){ return !STATIC; }
 
@@ -640,7 +656,17 @@ function pvApplyDraft(){
   renderAll();
 }
 
-function pvStarById(id, ev){ if(ev)ev.stopPropagation(); if(id==='all')return; toggleStar(id); renderPvModal(); }
+function pvStarById(id, ev){
+  if(ev)ev.stopPropagation(); if(id==='all')return;
+  toggleStar(id);
+  // An admin's star on a TEAM view is the ship-default for everyone — persist it
+  // to the shared file so it seeds as a tile for all users on their next load.
+  if(_isAdmin() && id.startsWith('team_')){
+    const v=sectionTeamViews.find(x=>x.id===id);
+    if(v){ v.starred = getStarredIds().has(id); persistTeamViews(); }
+  }
+  renderPvModal();
+}
 function pvDeleteById(id, ev){ if(ev)ev.stopPropagation(); if(id==='all')return; pvDeleteView(id); }
 function pvMoveById(id, dir, ev){
   if(ev)ev.stopPropagation(); if(id==='all')return;

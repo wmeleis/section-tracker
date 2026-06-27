@@ -1,9 +1,27 @@
 {
   "views": [
     {
+      "id": "team_livecast",
+      "name": "Live Cast courses",
+      "team": true,
+      "starred": true,
+      "state": {
+        "visibleCols": [
+          "course_code", "section", "title", "term", "college", "campus",
+          "instructional_method", "faculty_name", "modality_resolved", "notes"
+        ],
+        "filters": {
+          "term": "", "level": "", "resolved": "", "college": "", "campus": "",
+          "subject": "", "modality": "Live Cast", "search": ""
+        },
+        "tree": null
+      }
+    },
+    {
       "id": "team_st_2plus_prior",
       "name": "Special topics — 2+ prior offerings",
       "team": true,
+      "starred": true,
       "state": {
         "visibleCols": [
           "course_code", "section", "title", "term", "college", "campus",
