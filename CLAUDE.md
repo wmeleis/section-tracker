@@ -12,13 +12,21 @@ A dashboard for analyzing **Fall 2026 course sections** — primarily **modality
 
 ## Data source — Tableau "Active Classes" (Registrar site)
 The view is gated behind empty Subject Code + Class College multi-selects plus a
-term parameter, so a plain REST export returns nothing. The owner saved a Tableau
-**Custom View named "Fall 2026"** (Term=Fall 2026 + all subjects + all colleges).
-A custom view bakes its filter state server-side, so the REST custom-view data
-endpoint returns the full ~11k-section table in one request — **no browser needed
-for the recurring pull**. To change the term/selection, edit the "Fall 2026"
-custom view in the browser (no code change). PAT in `data/tableau_pat.json`
-(gitignored). Endpoint: `/api/exp/sites/{site}/customviews/{cv}/data`.
+term parameter, so a plain REST export returns nothing. The owner saved one shared
+Tableau **Custom View per term** ("Fall 2026", "Spring 2026", "Summer 2026"), each
+with its term + all subjects + all colleges selected. A custom view bakes its
+filter state server-side, so the REST custom-view data endpoint returns that term's
+full section table in one request — **no browser needed for the recurring pull**.
+The fetcher pulls every term in `fetch_active_classes.TERMS` (add a term by saving
+a new custom view and listing it there). To change a term's selection, edit its
+custom view in the browser (no code change). **Sign-in is pinned to the Registrar
+site** (the PAT JSON's `site` key points elsewhere — don't use it). PAT in
+`data/tableau_pat.json` (gitignored). Endpoint:
+`/api/exp/sites/{site}/customviews/{cv}/data`. ~25k sections across 3 terms.
+
+**Term is part of the key.** CRNs repeat across terms, so every section's id and
+the DB primary key are `"{term}|{crn}"`. The dashboard's **Term** row (first
+control) scopes everything to one term (default Fall 2026; "All" shows every term).
 
 The feed is row-per-(CRN × meeting/faculty); `fetch_active_classes.parse_sections`
 collapses to **one row per CRN**, merging multi-valued faculty/meeting/location,
@@ -26,8 +34,11 @@ and drops administrative placeholders (empty Subject / "Administrative Non-CEU")
 
 ## Editable overlay — Airtable (`notes_store.py`)
 Base `appPpmcDzhL2BllHu`, table `tblUbDvuKPudNy6d8`. Token in **Keychain**
-(`security … -s airtable-sections -a token`). Fields: `CRN` (key), `Course`,
-`College`, `Notes`, `Modality Resolved` (Yes/No), `Updated By`.
+(`security … -s airtable-sections -a token`). Fields: `CRN`, `Term`, `Course`,
+`College`, `Notes`, `Modality Resolved` (Yes/No), `Updated By`. Notes are keyed
+on **(CRN, Term)** — the upsert merges on `['CRN','Term']` and self-heals to
+`['CRN']` if the `Term` field is missing (but multi-term notes need the `Term`
+field present, or notes won't line up with the right section).
 - **Notes** — colleges edit on the dashboard; writes go straight to Airtable.
 - **Modality Resolved** — editable only in the local/admin build (`is_admin`);
   the static site renders it read-only, so in practice only the owner sets it.
