@@ -51,6 +51,8 @@ const SECTION_COLUMNS = [
   { key:'faculty_name', label:'Faculty' },
   { key:'modality_resolved', label:'Resolved' },
   { key:'notes',       label:'Notes' },
+  { key:'special_topics', label:'Special Topics', defaultHidden:true },
+  { key:'times_offered',  label:'Times Offered', num:true, defaultHidden:true },
   { key:'term',         label:'Term',          defaultHidden:true },
   { key:'crn',          label:'CRN',           defaultHidden:true },
   { key:'schedule',     label:'Schedule',      defaultHidden:true },
@@ -237,6 +239,8 @@ function colCell(s, key){
   if(key==='modality_resolved') return `<td>${s.modality_resolved?'<span class="resolved-yes">✓ Yes</span>':'<span class="resolved-no">—</span>'}</td>`;
   if(key==='notes')       return `<td>${s.notes&&s.notes.trim()?'<span class="has-note">📝</span>':''}</td>`;
   if(key==='faculty_email') return `<td class="muted">${esc(s.faculty_email||'—')}</td>`;
+  if(key==='special_topics') return `<td>${s.special_topics==='Yes'?'<span class="pill" style="background:#ede9fe;color:#6d28d9">ST</span>':''}</td>`;
+  if(key==='times_offered')  return `<td class="enr">${(s.times_offered==null||s.times_offered==='')?'<span class="muted">—</span>':(+s.times_offered)}</td>`;
   return `<td>${esc(s[key]||'')}</td>`;
 }
 
@@ -280,7 +284,9 @@ function renderDetail(s){
   const left=el('div'); left.innerHTML='<h4>Section</h4>'+kv([
     ['CRN',s.crn],['Course',s.course_code],['Section',s.section],['Title',s.title],
     ['College',s.college],['Campus',s.campus],['Level',s.level],['Schedule',s.schedule],
-    ['Enrolled',s.total_enrolled],['Honors',s.honors_ind]]);
+    ['Enrolled',s.total_enrolled],['Honors',s.honors_ind],
+    ['Special topics', s.special_topics==='Yes' ? 'Yes' : 'No'],
+    ['Times offered', (s.times_offered==null||s.times_offered==='') ? '—' : s.times_offered]]);
   const right=el('div'); right.innerHTML='<h4>Modality &amp; logistics</h4>'+kv([
     ['Instructional Method',s.instructional_method],['Meeting Time',s.meeting_time],
     ['Location',s.location],['Faculty',s.faculty_name],['Faculty Email',s.faculty_email],
@@ -386,6 +392,8 @@ const SECTION_FILTER_FIELDS = [
   {key:'enrolled',    label:'Enrolled',         type:'text',   value:s=>String(s.total_enrolled==null?'':s.total_enrolled)},
   {key:'resolved',    label:'Modality Resolved',type:'boolean',value:s=>s.modality_resolved?'Y':'N'},
   {key:'has_notes',   label:'Has Notes',        type:'boolean',value:s=>(s.notes&&s.notes.trim())?'Y':'N'},
+  {key:'special_topics',label:'Special Topics', type:'boolean',value:s=>s.special_topics==='Yes'?'Y':'N'},
+  {key:'times_offered',label:'Times Offered',   type:'number', value:s=>s.times_offered},
   {key:'updated_by',  label:'Updated By',       type:'text',   value:s=>s.updated_by||''},
 ];
 function _svField(key){ return SECTION_FILTER_FIELDS.find(f=>f.key===key); }
@@ -415,6 +423,15 @@ function evalRule(s, rule){
   const op=rule.op||'';
   if(op==='is_set')   return v!=='';
   if(op==='is_empty') return v==='';
+  if(f.type==='number'){
+    if(v==='') return false;               // blank never satisfies a comparison
+    const n=parseFloat(v), q=parseFloat(rule.value);
+    if(isNaN(q)) return true;              // threshold not set yet → don't restrict
+    if(op==='>=') return n>=q;
+    if(op==='<=') return n<=q;
+    if(op==='=')  return n===q;
+    return true;
+  }
   if(f.type==='text'){
     if(!rule.value) return true;
     const q=String(rule.value).toLowerCase(), hay=v.toLowerCase();
@@ -430,12 +447,14 @@ function evalRule(s, rule){
 function _opsForType(t){
   if(t==='text')    return [['contains','contains'],['equals','equals'],['starts_with','starts with'],['is_set','is set'],['is_empty','is not set']];
   if(t==='boolean') return [['in','is'],['is_set','is set'],['is_empty','is not set']];
+  if(t==='number')  return [['>=','at least'],['<=','at most'],['=','equals'],['is_set','is set'],['is_empty','is not set']];
   return [['in','is one of'],['not_in','is not one of'],['is_set','is set'],['is_empty','is not set']];
 }
 function _defaultRule(key){
   const f=_svField(key)||SECTION_FILTER_FIELDS[0];
   if(f.type==='text')    return {type:'rule', field:f.key, op:'contains', value:''};
   if(f.type==='boolean') return {type:'rule', field:f.key, op:'in', value:['Y']};
+  if(f.type==='number')  return {type:'rule', field:f.key, op:'>=', value:''};
   return {type:'rule', field:f.key, op:'in', value:[]};
 }
 
@@ -589,6 +608,9 @@ function _renderPvRuleValue(rule, f, path){
   if(rule.op==='is_set'||rule.op==='is_empty') return '';
   if(f.type==='text'){
     return `<input type="text" class="pvb-text" value="${esc(rule.value||'')}" oninput="pvbSetValue('${path}', this.value)" placeholder="search…">`;
+  }
+  if(f.type==='number'){
+    return `<input type="number" min="0" class="pvb-text" style="width:90px" value="${esc(rule.value||'')}" oninput="pvbSetValue('${path}', this.value)" placeholder="count">`;
   }
   if(f.type==='boolean'){
     const vals=Array.isArray(rule.value)?rule.value:(rule.value?[rule.value]:[]);

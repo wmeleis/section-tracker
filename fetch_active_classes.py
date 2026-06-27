@@ -18,6 +18,7 @@ To change which term/selection is pulled, edit the "Fall 2026" custom view in
 the browser (it stays server-side) — no code change needed.
 """
 import os
+import re
 import csv
 import io
 import json
@@ -57,6 +58,20 @@ def _clean(v):
         return ''
     v = str(v).strip()
     return '' if v.lower() in _EMPTY else v
+
+
+# Special-topics detector — derived from the course TITLE alone (not the
+# Registrar's summary sheet). Explicit markers only: "Special Topics"/"Special
+# Topic", "Spec Top"/"Spec. Topics"/"Specl Topics", or a leading "ST" code
+# ("ST:", "ST-", "ST/", "ST "). Deliberately NOT matching bare "Topics in X"
+# (mostly permanent courses) or titles that merely start with "St" (Statistics,
+# Strategic, Studio…). ~99% recall / ~100% precision vs the summary sheet.
+_SPECIAL_TOPIC_RE = re.compile(
+    r'special\s+top|spec\w*\.?\s*top|^st\s*[:/\-]|^st\s+\S', re.I)
+
+
+def is_special_topic(title):
+    return bool(_SPECIAL_TOPIC_RE.search((title or '').strip()))
 
 
 # ---------------------------------------------------------------------------
@@ -205,6 +220,8 @@ def _make_section(crn, row, term_label):
         'attributes': _clean(row.get('Attributes')),
         'course_description': _clean(row.get('Course Description')),
         'total_enrolled': enrolled,
+        'special_topics': 'Yes' if is_special_topic(_clean(row.get('Class Title'))) else '',
+        'times_offered': '',   # filled by the special-topics overlay (per-topic join)
         'class_term': _clean(row.get('Class Term')),
         'refresh_date': _clean(row.get('Refresh Date')),
     }
@@ -256,6 +273,23 @@ def fetch_and_parse(use_cache=False):
                     refresh = secs[0]['refresh_date']
             except Exception as e:
                 print(f"  {t['label']}: skipped ({e})")
+        # Overlay times-offered for special-topics courses (per-topic join on
+        # normalized subject+number+title). Best-effort: never blocks the scan.
+        try:
+            import fetch_special_topics as fst
+            tmap = fst.fetch_times_offered(token=token, site_id=site_id, use_cache=use_cache)
+            hits = 0
+            for s in all_sections:
+                if s.get('special_topics') != 'Yes':
+                    continue
+                n = tmap.get(fst.section_key(s['subject'], s['course_number'], s['title']))
+                if n is not None:
+                    s['times_offered'] = n
+                    hits += 1
+            print(f"  special topics: {sum(1 for s in all_sections if s.get('special_topics')=='Yes')} flagged, "
+                  f"{hits} matched to times-offered ({len(tmap)} in summary)")
+        except Exception as e:
+            print(f"  special-topics overlay skipped ({e})")
     finally:
         if token:
             _signout(token)

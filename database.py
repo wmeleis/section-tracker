@@ -18,7 +18,7 @@ SECTION_COLUMNS = [
     'title', 'college', 'campus', 'instructional_method', 'level', 'schedule',
     'meeting_time', 'location', 'faculty_name', 'faculty_email', 'faculty_type',
     'faculty_category', 'honors_ind', 'attributes', 'course_description',
-    'total_enrolled', 'class_term', 'refresh_date',
+    'total_enrolled', 'special_topics', 'times_offered', 'class_term', 'refresh_date',
 ]
 
 
@@ -32,7 +32,8 @@ def _conn():
 
 def init_db():
     c = _conn()
-    cols = ',\n  '.join(f'{name} TEXT' if name != 'total_enrolled' else f'{name} INTEGER'
+    _int_cols = {'total_enrolled', 'times_offered'}
+    cols = ',\n  '.join(f'{name} INTEGER' if name in _int_cols else f'{name} TEXT'
                         for name in SECTION_COLUMNS)
     c.execute(f'''CREATE TABLE IF NOT EXISTS sections (
   {cols},
