@@ -10,37 +10,45 @@
 <div id="app-root">
   <header>
     <div class="header-left">
-      <h1>Fall 2026 Section Tracker</h1>
-      <span class="subtitle" id="subtitle">loading…</span>
+      <h1>Section Tracker</h1>
+      <span class="subtitle" id="subtitle">Fall 2026 · loading…</span>
     </div>
     <div class="header-right">
       <span class="last-updated" id="last-updated"></span>
       <span class="badge-dot" id="store-badge" title="Notes store"><span class="dot"></span><span id="store-label">notes</span></span>
-      <button class="btn btn-primary" id="connect-btn" onclick="connectNow()">↻ Update data</button>
+      <button class="header-secondary-btn" id="connect-btn" onclick="connectNow()">↻ Update data</button>
     </div>
   </header>
 
   <main>
-    <div class="modality-bar" id="modality-bar"></div>
+    <div class="pipeline-row">
+      <div class="pipeline-bar" id="pipeline-bar"></div>
+    </div>
 
-    <div class="view-tiles" id="view-tiles"></div>
-
-    <div class="controls">
-      <div class="filter-row" id="filter-row">
-        <label>College<select id="f-college"><option value="">All</option></select></label>
-        <label>Campus<select id="f-campus"><option value="">All</option></select></label>
-        <label>Subject<select id="f-subject"><option value="">All</option></select></label>
-        <label>Modality<select id="f-modality"><option value="">All</option></select></label>
-        <label>Resolved<select id="f-resolved"><option value="">All</option><option value="yes">Resolved</option><option value="no">Unresolved</option><option value="notes">Has notes</option></select></label>
-        <label>Level
-          <span class="seg" id="seg-level">
-            <button data-v="" class="active">All</button>
-            <button data-v="GR">Graduate</button>
-            <button data-v="UG">Undergrad</button>
-          </span>
-        </label>
-        <label>Search<input type="text" id="f-search" placeholder="course, title, CRN, faculty…"></label>
-        <button class="btn" onclick="clearFilters()">Clear</button>
+    <div class="controls-section">
+      <div class="button-row" id="level-row">
+        <span class="row-label">Level</span>
+        <button class="type-btn active" data-v="" onclick="setLevel('')">All</button>
+        <button class="type-btn" data-v="GR" onclick="setLevel('GR')">Graduate</button>
+        <button class="type-btn" data-v="UG" onclick="setLevel('UG')">Undergraduate</button>
+      </div>
+      <div class="button-row" id="resolved-row">
+        <span class="row-label">Resolved</span>
+        <button class="proposal-btn active-all" data-v="" onclick="setResolved('')">All</button>
+        <button class="proposal-btn" data-v="no" onclick="setResolved('no')">Unresolved</button>
+        <button class="proposal-btn" data-v="yes" onclick="setResolved('yes')">Resolved</button>
+        <button class="proposal-btn" data-v="notes" onclick="setResolved('notes')">Has notes</button>
+      </div>
+      <div class="button-row" id="views-row">
+        <span class="row-label">Views</span>
+        <span id="view-buttons" style="display:contents"></span>
+      </div>
+      <div class="filters">
+        <div class="filter-group"><label>College</label><select id="f-college"><option value="">All</option></select></div>
+        <div class="filter-group"><label>Campus</label><select id="f-campus"><option value="">All</option></select></div>
+        <div class="filter-group"><label>Subject</label><select id="f-subject"><option value="">All</option></select></div>
+        <div class="filter-group"><label>Search</label><input type="text" id="f-search" placeholder="course, title, CRN, faculty…"></div>
+        <button class="header-secondary-btn" onclick="clearFilters()">Clear</button>
       </div>
     </div>
 
