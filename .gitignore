@@ -1,0 +1,17 @@
+# secrets — never commit
+data/tableau_pat.json
+
+# generated / local data
+data/*.db
+data/*.db-wal
+data/*.db-shm
+data/*.csv
+data/notes_local.json
+__pycache__/
+*.pyc
+
+# docs/ is published to the gh-pages branch by deploy.py, never committed to main
+docs/
+
+# logs
+data/*.log
