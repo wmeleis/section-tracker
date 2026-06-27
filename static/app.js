@@ -128,6 +128,13 @@ function uniq(key){ return [...new Set(allSections.map(s=>s[key]).filter(Boolean
 function populateFilters(){
   const te=$('#f-term');
   if(te){ te.innerHTML=availableTerms().map(t=>`<option value="${esc(t)}">${esc(t)}</option>`).join('')+'<option value="">All terms</option>'; te.value=filters.term; }
+  const me=$('#f-modality');
+  if(me){
+    const present=uniq('instructional_method');
+    const ordered=MOD_ORDER.filter(m=>present.includes(m)).concat(present.filter(m=>!MOD_ORDER.includes(m)));
+    me.innerHTML='<option value="">All</option>'+ordered.map(m=>`<option value="${esc(m)}">${esc(modShort(m))}</option>`).join('');
+    me.value=filters.modality;
+  }
   fillSelect('#f-college', uniq('college'), abbr);
   fillSelect('#f-campus', uniq('campus'));
   fillSelect('#f-subject', uniq('subject'));
@@ -167,24 +174,7 @@ function baseFiltered(skip){
 const getFiltered = () => baseFiltered(null).filter(s => evalNode(s, appliedTree));
 
 // ---------- render ----------
-function renderAll(){ renderPipeline(); renderViewTiles(); syncButtonRows(); renderHead(); renderTable(); }
-
-function renderPipeline(){
-  const bar=$('#pipeline-bar'); bar.innerHTML='';
-  const rows=baseFiltered('modality');
-  const counts={}; rows.forEach(s=>counts[s.instructional_method]=(counts[s.instructional_method]||0)+1);
-  const mk=(label,val,count)=>{
-    const active = (filters.modality===val) || (val==='' && !filters.modality);
-    const t=el('div','pipeline-step '+(count>0?'has-items':'empty')+(active?' active':''));
-    t.innerHTML=`<span class="step-count">${count.toLocaleString()}</span><span class="step-name">${esc(label)}</span>`;
-    t.title = (val||'All sections')+': '+count+' sections';
-    t.onclick=()=>{ filters.modality = (filters.modality===val?'':val); renderAll(); };
-    return t;
-  };
-  bar.appendChild(mk('All', '', rows.length));
-  MOD_ORDER.concat(Object.keys(counts).filter(m=>!MOD_ORDER.includes(m)))
-    .filter(m=>m && counts[m]).forEach(m=>bar.appendChild(mk(modShort(m),m,counts[m])));
-}
+function renderAll(){ renderViewTiles(); syncButtonRows(); renderHead(); renderTable(); }
 
 // button-row active-state sync
 function syncButtonRows(){
@@ -871,15 +861,17 @@ window.setResolved=v=>{ filters.resolved=(filters.resolved===v?'':v); renderAll(
 function bindControls(){
   $('#f-term').onchange=e=>{filters.term=e.target.value;renderAll();};
   $('#f-level').onchange=e=>{filters.level=e.target.value;renderAll();};
+  $('#f-modality').onchange=e=>{filters.modality=e.target.value;renderAll();};
   $('#f-college').onchange=e=>{filters.college=e.target.value;renderAll();};
   $('#f-campus').onchange=e=>{filters.campus=e.target.value;renderAll();};
   $('#f-subject').onchange=e=>{filters.subject=e.target.value;renderAll();};
   $('#f-search').oninput=e=>{filters.search=e.target.value;renderTable();};
 }
 function syncFilterControls(){
-  const te=$('#f-term'), lv=$('#f-level'), cs=$('#f-college'), ca=$('#f-campus'), su=$('#f-subject'), se=$('#f-search');
+  const te=$('#f-term'), lv=$('#f-level'), md=$('#f-modality'), cs=$('#f-college'), ca=$('#f-campus'), su=$('#f-subject'), se=$('#f-search');
   if(te) te.value=filters.term;
   if(lv) lv.value=filters.level;
+  if(md) md.value=filters.modality;
   if(cs) cs.value=filters.college; if(ca) ca.value=filters.campus;
   if(su) su.value=filters.subject; if(se) se.value=filters.search;
 }
