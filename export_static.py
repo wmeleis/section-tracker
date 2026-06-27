@@ -161,7 +161,7 @@ GATE_HEAD = '''<!DOCTYPE html><html lang="en"><head>
     <button type="submit" id="gate-submit">Unlock</button>
     <div class="err" id="gate-err"></div>
   </form>
-</div>
+</div></div>
 '''
 
 
@@ -231,6 +231,8 @@ def build():
     end = tmpl.index('<div class="toast"')
     body = tmpl[start:end]
     body = body.replace('/static/', '')
+    # hidden until the gate unlocks (boot() reveals it) — gate is now a sibling
+    body = body.replace('<div id="app-root">', '<div id="app-root" style="display:none">', 1)
     # drop the Update button on the static site (no local server)
     body = body.replace('<button class="btn btn-primary" id="connect-btn" onclick="connectNow()">↻ Update data</button>', '')
     body += '<div class="toast" id="toast"></div>'
