@@ -63,10 +63,6 @@
     </div>
 
     <div class="controls-section">
-      <div class="button-row" id="term-row">
-        <span class="row-label">Term</span>
-        <span id="term-buttons" style="display:contents"></span>
-      </div>
       <div class="button-row" id="resolved-row">
         <span class="row-label">Resolved</span>
         <button class="proposal-btn active-all" data-v="" onclick="setResolved('')">All</button>
@@ -75,6 +71,7 @@
         <button class="proposal-btn" data-v="notes" onclick="setResolved('notes')">Has notes</button>
       </div>
       <div class="filters">
+        <div class="filter-group"><label>Term</label><select id="f-term"></select></div>
         <div class="filter-group"><label>Level</label><select id="f-level"><option value="">All</option><option value="GR">Graduate</option><option value="UG">Undergraduate</option></select></div>
         <div class="filter-group"><label>College</label><select id="f-college"><option value="">All</option></select></div>
         <div class="filter-group"><label>Campus</label><select id="f-campus"><option value="">All</option></select></div>

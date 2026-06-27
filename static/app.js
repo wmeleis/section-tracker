@@ -126,6 +126,8 @@ function hideStaticOnlyHeader(){
 
 function uniq(key){ return [...new Set(allSections.map(s=>s[key]).filter(Boolean))].sort(); }
 function populateFilters(){
+  const te=$('#f-term');
+  if(te){ te.innerHTML=availableTerms().map(t=>`<option value="${esc(t)}">${esc(t)}</option>`).join('')+'<option value="">All terms</option>'; te.value=filters.term; }
   fillSelect('#f-college', uniq('college'), abbr);
   fillSelect('#f-campus', uniq('campus'));
   fillSelect('#f-subject', uniq('subject'));
@@ -165,23 +167,7 @@ function baseFiltered(skip){
 const getFiltered = () => baseFiltered(null).filter(s => evalNode(s, appliedTree));
 
 // ---------- render ----------
-function renderAll(){ renderTermButtons(); renderPipeline(); renderViewTiles(); syncButtonRows(); renderHead(); renderTable(); }
-
-function renderTermButtons(){
-  const wrap=$('#term-buttons'); if(!wrap) return;
-  const rows=baseFiltered('term');
-  const counts={}; rows.forEach(s=>counts[s.term]=(counts[s.term]||0)+1);
-  const terms=availableTerms();
-  const mk=(label,val,count)=>{
-    const b=el('button','type-btn'+((filters.term===val)||(val===''&&!filters.term)?' active':''));
-    b.innerHTML=esc(label)+(count!=null?` <span style="opacity:.7">${count.toLocaleString()}</span>`:'');
-    b.onclick=()=>{ filters.term=val; renderAll(); };
-    return b;
-  };
-  wrap.innerHTML='';
-  terms.forEach(t=>wrap.appendChild(mk(t,t,counts[t]||0)));
-  wrap.appendChild(mk('All','',rows.length));
-}
+function renderAll(){ renderPipeline(); renderViewTiles(); syncButtonRows(); renderHead(); renderTable(); }
 
 function renderPipeline(){
   const bar=$('#pipeline-bar'); bar.innerHTML='';
@@ -883,6 +869,7 @@ async function connectNow(){
 // ---------- button-row + filter handlers ----------
 window.setResolved=v=>{ filters.resolved=(filters.resolved===v?'':v); renderAll(); };
 function bindControls(){
+  $('#f-term').onchange=e=>{filters.term=e.target.value;renderAll();};
   $('#f-level').onchange=e=>{filters.level=e.target.value;renderAll();};
   $('#f-college').onchange=e=>{filters.college=e.target.value;renderAll();};
   $('#f-campus').onchange=e=>{filters.campus=e.target.value;renderAll();};
@@ -890,7 +877,8 @@ function bindControls(){
   $('#f-search').oninput=e=>{filters.search=e.target.value;renderTable();};
 }
 function syncFilterControls(){
-  const lv=$('#f-level'), cs=$('#f-college'), ca=$('#f-campus'), su=$('#f-subject'), se=$('#f-search');
+  const te=$('#f-term'), lv=$('#f-level'), cs=$('#f-college'), ca=$('#f-campus'), su=$('#f-subject'), se=$('#f-search');
+  if(te) te.value=filters.term;
   if(lv) lv.value=filters.level;
   if(cs) cs.value=filters.college; if(ca) ca.value=filters.campus;
   if(su) su.value=filters.subject; if(se) se.value=filters.search;
