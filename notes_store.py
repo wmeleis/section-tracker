@@ -31,6 +31,11 @@ KEYCHAIN_SERVICE = 'airtable-sections'
 
 F_CRN, F_COURSE, F_COLLEGE = 'CRN', 'Course', 'College'
 F_NOTES, F_RESOLVED, F_BY  = 'Notes', 'Modality Resolved', 'Updated By'
+F_TERM = 'Term'
+
+def _key(term, crn):
+    """Notes key — CRNs repeat across terms, so key on (term, crn)."""
+    return f'{term}|{crn}' if term else str(crn)
 
 _token_cache = None
 _avail_cache = None  # None=unknown, True/False once probed
@@ -124,7 +129,7 @@ def get_all_notes():
                         continue
                     rv = f.get(F_RESOLVED)
                     resolved = (rv is True) or (str(rv).strip().lower() in ('yes', 'true', '✓'))
-                    out[crn] = {
+                    out[_key(f.get(F_TERM, ''), crn)] = {
                         'notes': f.get(F_NOTES, '') or '',
                         'modality_resolved': resolved,
                         'updated_by': f.get(F_BY, '') or '',
@@ -136,68 +141,62 @@ def get_all_notes():
             return out
         except Exception:
             pass  # fall through to local
-    return {crn: {k: v for k, v in val.items()} for crn, val in _load_local().items()}
+    return {k: {kk: vv for kk, vv in val.items()} for k, val in _load_local().items()}
 
 
-def _upsert_airtable(crn, fields):
-    """Upsert by CRN, self-healing past fields that don't exist yet in the
-    table (e.g. 'Modality Resolved'/'Updated By' before the owner adds them).
-    Drops the offending field and retries so the rest still saves."""
+def _upsert_airtable(crn, term, fields):
+    """Upsert keyed on (CRN, Term), self-healing past fields/merge-keys that
+    don't exist yet (e.g. before the owner adds the 'Term' or 'Modality
+    Resolved' fields). Drops an unknown field/merge-key and retries so the rest
+    still saves."""
     fields = dict(fields)
-    for _ in range(len(fields) + 1):
-        body = {
-            'performUpsert': {'fieldsToMergeOn': [F_CRN]},
-            'records': [{'fields': {F_CRN: str(crn), **fields}}],
-            'typecast': True,
-        }
+    fields[F_CRN] = str(crn)
+    if term:
+        fields[F_TERM] = term
+    merge = [F_CRN, F_TERM] if term else [F_CRN]
+    for _ in range(len(fields) + 2):
+        body = {'performUpsert': {'fieldsToMergeOn': merge},
+                'records': [{'fields': fields}], 'typecast': True}
         try:
             _api('PATCH', '', body)
             return
         except urllib.error.HTTPError as e:
             missing = _unknown_field(getattr(e, 'msg', '') or str(e))
+            if missing == F_TERM:                 # Term field not added yet
+                fields.pop(F_TERM, None); merge = [F_CRN]; continue
             if missing and missing in fields:
-                del fields[missing]
-                continue
+                del fields[missing]; continue
             raise
 
 
-def set_note(crn, notes, updated_by='', course='', college=''):
+def set_note(crn, term, notes, updated_by='', course='', college=''):
     crn = str(crn)
-    stamp = datetime.datetime.now().isoformat(timespec='seconds')
     if airtable_available():
         fields = {F_NOTES: notes, F_BY: updated_by or 'web'}
-        if course:
-            fields[F_COURSE] = course
-        if college:
-            fields[F_COLLEGE] = college
-        _upsert_airtable(crn, fields)
+        if course:  fields[F_COURSE] = course
+        if college: fields[F_COLLEGE] = college
+        _upsert_airtable(crn, term, fields)
         return {'ok': True, 'store': 'airtable'}
-    d = _load_local()
-    rec = d.get(crn, {})
-    rec.update({'notes': notes, 'updated_by': updated_by or 'local', 'updated_at': stamp})
-    d[crn] = rec
-    _save_local(d)
+    d = _load_local(); k = _key(term, crn)
+    rec = d.get(k, {}); rec.update({'notes': notes, 'updated_by': updated_by or 'local',
+        'updated_at': datetime.datetime.now().isoformat(timespec='seconds')})
+    d[k] = rec; _save_local(d)
     return {'ok': True, 'store': 'local'}
 
 
-def set_resolved(crn, resolved, updated_by='', course='', college=''):
+def set_resolved(crn, term, resolved, updated_by='', course='', college=''):
     crn = str(crn)
-    val = 'Yes' if resolved else 'No'
-    stamp = datetime.datetime.now().isoformat(timespec='seconds')
     if airtable_available():
-        fields = {F_RESOLVED: val, F_BY: updated_by or 'owner'}
-        if course:
-            fields[F_COURSE] = course
-        if college:
-            fields[F_COLLEGE] = college
-        _upsert_airtable(crn, fields)
+        fields = {F_RESOLVED: ('Yes' if resolved else 'No'), F_BY: updated_by or 'owner'}
+        if course:  fields[F_COURSE] = course
+        if college: fields[F_COLLEGE] = college
+        _upsert_airtable(crn, term, fields)
         return {'ok': True, 'store': 'airtable'}
-    d = _load_local()
-    rec = d.get(crn, {})
-    rec.update({'modality_resolved': bool(resolved), 'updated_by': updated_by or 'owner',
-                'updated_at': stamp})
-    d[crn] = rec
-    _save_local(d)
+    d = _load_local(); k = _key(term, crn)
+    rec = d.get(k, {}); rec.update({'modality_resolved': bool(resolved),
+        'updated_by': updated_by or 'owner',
+        'updated_at': datetime.datetime.now().isoformat(timespec='seconds')})
+    d[k] = rec; _save_local(d)
     return {'ok': True, 'store': 'local'}
 
 

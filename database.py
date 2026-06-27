@@ -14,11 +14,11 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(HERE, 'data', 'sections.db')
 
 SECTION_COLUMNS = [
-    'crn', 'subject', 'course_number', 'course_code', 'section', 'title',
-    'college', 'campus', 'instructional_method', 'level', 'schedule',
+    'id', 'term', 'crn', 'subject', 'course_number', 'course_code', 'section',
+    'title', 'college', 'campus', 'instructional_method', 'level', 'schedule',
     'meeting_time', 'location', 'faculty_name', 'faculty_email', 'faculty_type',
     'faculty_category', 'honors_ind', 'attributes', 'course_description',
-    'total_enrolled', 'term', 'refresh_date',
+    'total_enrolled', 'class_term', 'refresh_date',
 ]
 
 
@@ -37,7 +37,7 @@ def init_db():
     c.execute(f'''CREATE TABLE IF NOT EXISTS sections (
   {cols},
   fetched_at TEXT,
-  PRIMARY KEY (crn)
+  PRIMARY KEY (id)
 )''')
     c.execute('''CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT)''')
     c.commit()
@@ -69,7 +69,7 @@ def get_all_sections():
     init_db()
     c = _conn()
     try:
-        rows = c.execute('SELECT * FROM sections ORDER BY subject, course_number, section').fetchall()
+        rows = c.execute('SELECT * FROM sections ORDER BY term, subject, course_number, section').fetchall()
         return [dict(r) for r in rows]
     finally:
         c.close()

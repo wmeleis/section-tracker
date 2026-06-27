@@ -33,7 +33,7 @@ def merged_sections():
     sections = db.get_all_sections()
     notes = notes_store.get_all_notes()
     for s in sections:
-        n = notes.get(s['crn'], {})
+        n = notes.get(s['id'], {})  # id = "{term}|{crn}"
         s['notes'] = n.get('notes', '')
         s['modality_resolved'] = bool(n.get('modality_resolved', False))
         s['updated_by'] = n.get('updated_by', '')
@@ -103,7 +103,7 @@ def api_connect():
 def api_note(crn):
     body = request.get_json(force=True) or {}
     res = notes_store.set_note(
-        crn, body.get('notes', ''), updated_by=body.get('updated_by', ''),
+        crn, body.get('term', ''), body.get('notes', ''), updated_by=body.get('updated_by', ''),
         course=body.get('course', ''), college=body.get('college', ''))
     return jsonify(res)
 
@@ -112,7 +112,7 @@ def api_note(crn):
 def api_resolved(crn):
     body = request.get_json(force=True) or {}
     res = notes_store.set_resolved(
-        crn, bool(body.get('resolved')), updated_by=body.get('updated_by', 'owner'),
+        crn, body.get('term', ''), bool(body.get('resolved')), updated_by=body.get('updated_by', 'owner'),
         course=body.get('course', ''), college=body.get('college', ''))
     return jsonify(res)
 

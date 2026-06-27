@@ -61,10 +61,13 @@ def export_data(salt, key):
     sections = db.get_all_sections()
     notes = notes_store.get_all_notes()
     for s in sections:
-        n = notes.get(s['crn'], {})
+        n = notes.get(s['id'], {})  # id = "{term}|{crn}"
         s['notes'] = n.get('notes', '')
         s['modality_resolved'] = bool(n.get('modality_resolved', False))
         s['updated_by'] = n.get('updated_by', '')
+        # trim heavy fields not shown on the shared table (keeps the payload small)
+        s.pop('course_description', None)
+        s.pop('fetched_at', None)
     payload = {
         'sections': sections,
         'last_fetch': db.get_meta('last_fetch'),
@@ -94,10 +97,11 @@ window._loadSections = async function () {
   const d = await (await fetch('data.json')).json();   // gate decrypts
   _bakedAirtable = d.airtable;
   // Overlay LIVE notes + Modality Resolved from Airtable so edits show at once.
+  // Keyed by "{term}|{crn}" since CRNs repeat across terms.
   try {
     const live = await _fetchAirtableNotes(d.airtable);
-    const byCrn = {}; d.sections.forEach(s => byCrn[s.crn] = s);
-    Object.keys(live).forEach(crn => { if (byCrn[crn]) Object.assign(byCrn[crn], live[crn]); });
+    const byId = {}; d.sections.forEach(s => byId[s.id] = s);
+    Object.keys(live).forEach(k => { if (byId[k]) Object.assign(byId[k], live[k]); });
   } catch (e) { /* keep baked snapshot if Airtable read fails */ }
   return d;
 };
@@ -111,8 +115,9 @@ async function _fetchAirtableNotes(a) {
     const d = await r.json();
     (d.records || []).forEach(rec => {
       const f = rec.fields || {}; const crn = String(f.CRN || '').trim(); if (!crn) return;
-      const rv = f['Modality Resolved'];
-      out[crn] = { notes: f.Notes || '', updated_by: f['Updated By'] || '',
+      const rv = f['Modality Resolved']; const term = f.Term || '';
+      const key = term ? (term + '|' + crn) : crn;
+      out[key] = { notes: f.Notes || '', updated_by: f['Updated By'] || '',
         modality_resolved: rv === true || String(rv).toLowerCase() === 'yes' };
     });
     offset = d.offset;
@@ -126,8 +131,8 @@ window._saveNote = async function (s, notes) {
     window._editor = (localStorage.getItem('sectrk-editor') || '').trim();
     if (!window._editor) { window._editor = (prompt('Your name or college (saved with your notes):') || '').trim(); if (window._editor) localStorage.setItem('sectrk-editor', window._editor); }
   }
-  const body = {performUpsert:{fieldsToMergeOn:['CRN']}, typecast:true,
-    records:[{fields:{CRN:String(s.crn), Notes:notes, Course:s.course_code, College:s.college, 'Updated By':(window._editor||'college')}}]};
+  const body = {performUpsert:{fieldsToMergeOn:['CRN','Term']}, typecast:true,
+    records:[{fields:{CRN:String(s.crn), Term:s.term, Notes:notes, Course:s.course_code, College:s.college, 'Updated By':(window._editor||'college')}}]};
   const r = await fetch(`https://api.airtable.com/v0/${a.base}/${a.table}`, {method:'PATCH',
     headers:{'Authorization':'Bearer '+a.token,'Content-Type':'application/json'}, body:JSON.stringify(body)});
   return {ok: r.ok, store:'airtable'};

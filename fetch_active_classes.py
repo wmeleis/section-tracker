@@ -33,10 +33,20 @@ TABLEAU_HOST = 'https://tableau.northeastern.edu'
 SITE_NAME    = 'Registrar'
 API_VERSION  = '3.24'
 WORKBOOK     = 'Active Classes'
-CUSTOM_VIEW  = 'Fall 2026'
-TERM_LABEL   = 'Fall 2026'
 
-RAW_CSV = os.path.join(HERE, 'data', 'active_classes_fall26.csv')
+# Each term is a shared Tableau Custom View on the "Active Classes" view, saved
+# with Term + all subjects + all colleges selected. `label` is the canonical
+# term name used everywhere (filter, notes key). Add a term by saving a new
+# custom view and listing it here.
+TERMS = [
+    {'cv': 'Fall 2026',   'label': 'Fall 2026'},
+    {'cv': 'Spring 2026', 'label': 'Spring 2026'},
+    {'cv': 'Summer 2026', 'label': 'Summer 2026'},
+]
+
+def _raw_csv(label):
+    slug = label.lower().replace(' ', '_')
+    return os.path.join(HERE, 'data', f'active_classes_{slug}.csv')
 
 # Values that mean "no data" in the registrar feed.
 _EMPTY = {'', 'na', 'null', 'n/a', 'none'}
@@ -65,10 +75,12 @@ def _http(method, url, headers=None, body=None, timeout=180):
 def _signin():
     with open(PAT_PATH) as f:
         creds = json.load(f)
+    # Always the Registrar site (Active Classes lives there); the PAT JSON's
+    # `site` key points at a different site and must not be used here.
     body = json.dumps({'credentials': {
         'personalAccessTokenName': creds['token_name'],
         'personalAccessTokenSecret': creds['token_secret'],
-        'site': {'contentUrl': creds.get('site', SITE_NAME)},
+        'site': {'contentUrl': SITE_NAME},
     }}).encode()
     status, raw = _http('POST', f'{TABLEAU_HOST}/api/{API_VERSION}/auth/signin',
                         {'Content-Type': 'application/json', 'Accept': 'application/json'}, body)
@@ -110,34 +122,28 @@ def _signout(token):
         pass
 
 
-def download_csv():
-    """Sign in, download the Fall 2026 custom view CSV text, save it, return it."""
-    token, site_id = _signin()
-    try:
-        cv_id = _find_custom_view(token, site_id, WORKBOOK, CUSTOM_VIEW)
-        url = f'{TABLEAU_HOST}/api/exp/sites/{site_id}/customviews/{cv_id}/data'
-        status, raw = _http('GET', url, {'X-Tableau-Auth': token, 'Accept': '*/*'})
-        if status != 200:
-            raise RuntimeError(f'customview data HTTP {status}: {raw[:200]}')
-        text = raw.decode('utf-8-sig', errors='replace')
-        os.makedirs(os.path.dirname(RAW_CSV), exist_ok=True)
-        with open(RAW_CSV, 'w', encoding='utf-8') as f:
-            f.write(text)
-        return text
-    finally:
-        _signout(token)
+def download_csv(token, site_id, cv_name, out_path):
+    """Download one custom view's CSV text, save it, return it."""
+    cv_id = _find_custom_view(token, site_id, WORKBOOK, cv_name)
+    url = f'{TABLEAU_HOST}/api/exp/sites/{site_id}/customviews/{cv_id}/data'
+    status, raw = _http('GET', url, {'X-Tableau-Auth': token, 'Accept': '*/*'})
+    if status != 200:
+        raise RuntimeError(f'customview data HTTP {status}: {raw[:200]}')
+    text = raw.decode('utf-8-sig', errors='replace')
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    with open(out_path, 'w', encoding='utf-8') as f:
+        f.write(text)
+    return text
 
 
 # ---------------------------------------------------------------------------
 # Parse + collapse to one row per CRN
 # ---------------------------------------------------------------------------
 
-def parse_sections(csv_text):
-    """Collapse the row-per-(CRN×meeting/faculty) CSV into one dict per CRN.
-
-    Tableau emits duplicate rows when a section has multiple meeting patterns
-    or faculty; we group by CRN and merge those multi-valued fields.
-    """
+def parse_sections(csv_text, term_label):
+    """Collapse the row-per-(CRN×meeting/faculty) CSV into one dict per CRN,
+    tagged with `term_label`. Each section gets id = "{term}|{crn}" (CRNs repeat
+    across terms, so the term is part of the key)."""
     reader = csv.DictReader(io.StringIO(csv_text))
     by_crn = {}
     order = []
@@ -153,7 +159,7 @@ def parse_sections(csv_text):
         if _clean(row.get('Class Title')).lower().startswith('administrative'):
             continue
         if crn not in by_crn:
-            by_crn[crn] = _make_section(crn, row)
+            by_crn[crn] = _make_section(crn, row, term_label)
             order.append(crn)
         else:
             _merge_multivalue(by_crn[crn], row)
@@ -168,7 +174,7 @@ _MULTI = {
 }
 
 
-def _make_section(crn, row):
+def _make_section(crn, row, term_label):
     subject = _clean(row.get('Subject Code'))
     number  = _clean(row.get('Course Number'))
     try:
@@ -176,6 +182,8 @@ def _make_section(crn, row):
     except ValueError:
         enrolled = 0
     sec = {
+        'id': f'{term_label}|{crn}',
+        'term': term_label,
         'crn': crn,
         'subject': subject,
         'course_number': number,
@@ -197,7 +205,7 @@ def _make_section(crn, row):
         'attributes': _clean(row.get('Attributes')),
         'course_description': _clean(row.get('Course Description')),
         'total_enrolled': enrolled,
-        'term': _clean(row.get('Class Term')),
+        'class_term': _clean(row.get('Class Term')),
         'refresh_date': _clean(row.get('Refresh Date')),
     }
     return sec
@@ -222,21 +230,42 @@ def _merge_multivalue(sec, row):
 
 
 def fetch_and_parse(use_cache=False):
-    """Return (sections, refresh_date). use_cache reads the last saved CSV."""
-    if use_cache and os.path.exists(RAW_CSV):
-        with open(RAW_CSV, encoding='utf-8') as f:
-            text = f.read()
-    else:
-        text = download_csv()
-    sections = parse_sections(text)
-    refresh = sections[0]['refresh_date'] if sections else ''
-    return sections, refresh
+    """Pull every term in TERMS and return (sections, refresh_date).
+    use_cache reads the last saved per-term CSVs (offline). A term whose custom
+    view is empty/unset simply contributes 0 sections (logged), never an error."""
+    token = site_id = None
+    if not use_cache:
+        token, site_id = _signin()
+    all_sections, refresh = [], ''
+    try:
+        for t in TERMS:
+            out = _raw_csv(t['label'])
+            try:
+                if use_cache:
+                    if not os.path.exists(out):
+                        print(f"  {t['label']}: no cached CSV — skipping")
+                        continue
+                    with open(out, encoding='utf-8') as f:
+                        text = f.read()
+                else:
+                    text = download_csv(token, site_id, t['cv'], out)
+                secs = parse_sections(text, t['label'])
+                print(f"  {t['label']}: {len(secs)} sections")
+                all_sections.extend(secs)
+                if secs and not refresh:
+                    refresh = secs[0]['refresh_date']
+            except Exception as e:
+                print(f"  {t['label']}: skipped ({e})")
+    finally:
+        if token:
+            _signout(token)
+    return all_sections, refresh
 
 
 if __name__ == '__main__':
     import sys
     cache = '--cache' in sys.argv
     secs, refresh = fetch_and_parse(use_cache=cache)
-    print(f'{len(secs)} sections (refresh {refresh})')
+    print(f'{len(secs)} sections total (refresh {refresh})')
     from collections import Counter
-    print('modalities:', dict(Counter(s['instructional_method'] for s in secs)))
+    print('by term:', dict(Counter(s['term'] for s in secs)))
