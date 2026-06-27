@@ -15,10 +15,47 @@
     </div>
     <div class="header-right">
       <span class="last-updated" id="last-updated"></span>
+      <span class="scan-status" id="scan-status"></span>
       <span class="badge-dot" id="store-badge" title="Notes store"><span class="dot"></span><span id="store-label">notes</span></span>
+      <button class="header-secondary-btn" id="views-btn" onclick="openViewsModal()">★ Views</button>
+      <div class="portfolio-col-picker" id="section-col-picker" style="position:relative">
+        <button class="portfolio-col-picker-btn" onclick="toggleSectionColPicker(event)">⊞ Columns ▾</button>
+        <div class="portfolio-col-dropdown" id="section-col-dropdown"></div>
+      </div>
+      <button class="header-secondary-btn" onclick="exportSectionsCsv()" title="Export filtered rows to CSV">⤓ Export</button>
+      <button class="header-secondary-btn" id="console-btn" onclick="openConsoleModal()">Console</button>
       <button class="header-secondary-btn" id="connect-btn" onclick="connectNow()">↻ Update data</button>
     </div>
   </header>
+
+  <!-- Console modal (local-only, hidden on static site) -->
+  <div id="console-modal" class="modal-overlay" style="display:none" onclick="closeConsoleModalIfBackdrop(event)">
+    <div class="modal-panel" style="max-width:640px" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <h2>Console</h2>
+        <button class="modal-close" onclick="closeConsoleModal()">&times;</button>
+      </div>
+      <div class="modal-body" id="console-modal-body" style="font-size:13px">Loading…</div>
+    </div>
+  </div>
+
+  <!-- Views modal (filter-tree builder, mirrors the program tracker) -->
+  <div id="pv-modal-backdrop" class="pv-modal-backdrop" onclick="if(event.target===this)closeViewsModal()">
+    <div class="pv-modal" role="dialog" aria-modal="true" aria-label="Views">
+      <div class="pv-modal-header">
+        <span class="pv-modal-title">Views</span>
+        <span class="pv-modal-count" id="pv-modal-count"></span>
+        <button class="pv-modal-x" onclick="closeViewsModal()" aria-label="Close">×</button>
+      </div>
+      <div class="pv-modal-body">
+        <aside class="pv-modal-sidebar" id="pv-modal-sidebar"></aside>
+        <div class="pv-modal-maincol">
+          <div class="pv-modal-main" id="pv-modal-main"></div>
+          <div class="pv-modal-footer" id="pv-modal-footer"></div>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <main>
     <div class="pipeline-row">
@@ -30,12 +67,6 @@
         <span class="row-label">Term</span>
         <span id="term-buttons" style="display:contents"></span>
       </div>
-      <div class="button-row" id="level-row">
-        <span class="row-label">Level</span>
-        <button class="type-btn active" data-v="" onclick="setLevel('')">All</button>
-        <button class="type-btn" data-v="GR" onclick="setLevel('GR')">Graduate</button>
-        <button class="type-btn" data-v="UG" onclick="setLevel('UG')">Undergraduate</button>
-      </div>
       <div class="button-row" id="resolved-row">
         <span class="row-label">Resolved</span>
         <button class="proposal-btn active-all" data-v="" onclick="setResolved('')">All</button>
@@ -43,11 +74,8 @@
         <button class="proposal-btn" data-v="yes" onclick="setResolved('yes')">Resolved</button>
         <button class="proposal-btn" data-v="notes" onclick="setResolved('notes')">Has notes</button>
       </div>
-      <div class="button-row" id="views-row">
-        <span class="row-label">Views</span>
-        <span id="view-buttons" style="display:contents"></span>
-      </div>
       <div class="filters">
+        <div class="filter-group"><label>Level</label><select id="f-level"><option value="">All</option><option value="GR">Graduate</option><option value="UG">Undergraduate</option></select></div>
         <div class="filter-group"><label>College</label><select id="f-college"><option value="">All</option></select></div>
         <div class="filter-group"><label>Campus</label><select id="f-campus"><option value="">All</option></select></div>
         <div class="filter-group"><label>Subject</label><select id="f-subject"><option value="">All</option></select></div>
@@ -55,6 +83,9 @@
         <button class="header-secondary-btn" onclick="clearFilters()">Clear</button>
       </div>
     </div>
+
+    <!-- Starred-view tiles (quick-apply) -->
+    <div id="view-tiles" class="portfolio-view-tiles" style="display:none"></div>
 
     <div class="summary" id="summary"></div>
 

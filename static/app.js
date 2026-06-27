@@ -8,6 +8,7 @@ const STATIC = !!window._staticMode;
 
 let allSections = [];
 let lastFetch = '', refreshDate = '';
+let bakedPerTerm = null;     // per-term counts from the static payload (Console)
 const filters = { term:'Fall 2026', college:'', campus:'', subject:'', modality:'', resolved:'', level:'', search:'' };
 let sort = { key:'course_code', dir:1 };
 const expanded = new Set();
@@ -37,7 +38,8 @@ const MOD_SHORT = { 'Traditional':'On-ground','Cooperative Education':'Co-op',
   'Video Streaming':'Video Stream','One-On-One':'One-on-One','Study Abroad':'Study Abroad' };
 const modShort = m => MOD_SHORT[m] || m;
 
-const COLUMNS = [
+// ── Column registry (defaultHidden cols off until toggled in the picker) ──────
+const SECTION_COLUMNS = [
   { key:'course_code', label:'Course' },
   { key:'section',     label:'Sec' },
   { key:'title',       label:'Title' },
@@ -49,11 +51,38 @@ const COLUMNS = [
   { key:'faculty_name', label:'Faculty' },
   { key:'modality_resolved', label:'Resolved' },
   { key:'notes',       label:'Notes' },
+  { key:'term',         label:'Term',          defaultHidden:true },
+  { key:'crn',          label:'CRN',           defaultHidden:true },
+  { key:'schedule',     label:'Schedule',      defaultHidden:true },
+  { key:'meeting_time', label:'Meeting Time',  defaultHidden:true },
+  { key:'location',     label:'Location',      defaultHidden:true },
+  { key:'faculty_email',label:'Faculty Email', defaultHidden:true },
 ];
 
 const $ = s => document.querySelector(s);
 const el = (t,c,h) => { const e=document.createElement(t); if(c)e.className=c; if(h!=null)e.innerHTML=h; return e; };
 const esc = s => (s==null?'':String(s)).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+// ── Visible-columns set (persisted; new cols default to visible unless hidden)
+const _COLS_LS = 'sectrk-cols', _COLS_KNOWN_LS = 'sectrk-cols-known';
+function _loadSectionCols(){
+  let stored=null, known=[];
+  try { stored = JSON.parse(localStorage.getItem(_COLS_LS) || 'null'); } catch(e){}
+  try { known  = JSON.parse(localStorage.getItem(_COLS_KNOWN_LS) || '[]'); } catch(e){}
+  const knownSet = new Set(known);
+  const visible = Array.isArray(stored) ? new Set(stored)
+    : new Set(SECTION_COLUMNS.filter(c=>!c.defaultHidden).map(c=>c.key));
+  SECTION_COLUMNS.forEach(c=>{ if(!knownSet.has(c.key) && !c.defaultHidden) visible.add(c.key); });
+  return visible;
+}
+let sectionVisibleCols = _loadSectionCols();
+function _saveSectionCols(){
+  try {
+    localStorage.setItem(_COLS_LS, JSON.stringify([...sectionVisibleCols]));
+    localStorage.setItem(_COLS_KNOWN_LS, JSON.stringify(SECTION_COLUMNS.map(c=>c.key)));
+  } catch(e){}
+}
+function visibleColumns(){ return SECTION_COLUMNS.filter(c=>sectionVisibleCols.has(c.key)); }
 
 // ---------- load ----------
 async function load() {
@@ -63,14 +92,22 @@ async function load() {
   allSections = data.sections || [];
   lastFetch = data.last_fetch || '';
   refreshDate = data.refresh_date || '';
+  bakedPerTerm = data.per_term || null;
   // default to the first available term if the saved default isn't present
   const terms = availableTerms();
   if (filters.term && !terms.includes(filters.term)) filters.term = terms[0] || '';
   $('#subtitle').textContent = allSections.length.toLocaleString() + ' sections · ' + terms.length + ' terms · registrar refresh ' + (refreshDate || '—');
   $('#last-updated').textContent = lastFetch ? ('pulled ' + fmtTime(lastFetch)) : '';
   setStoreBadge(data.airtable);
+  // hydrate team views (static: baked; local: API)
+  await hydrateTeamViews(data);
+  hideStaticOnlyHeader();
   populateFilters();
-  renderAll();
+  // restore the last active view (if it still exists)
+  let restore = null;
+  try { restore = localStorage.getItem(_ACTIVE_LS); } catch(_){}
+  if (restore && getViewById(restore)) applyView(restore);
+  else renderAll();
 }
 function fmtTime(iso){ try { return new Date(iso).toLocaleString('en-US',{timeZone:'America/New_York',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})+' ET'; } catch(e){ return iso; } }
 function setStoreBadge(airtable){
@@ -78,6 +115,11 @@ function setStoreBadge(airtable){
   if(STATIC){ b.style.display='none'; return; }
   b.className='badge-dot '+(airtable?'ok':'bad');
   l.textContent = airtable ? 'Airtable notes' : 'local notes';
+}
+// On the static site there's no local server — hide Console + Update controls.
+function hideStaticOnlyHeader(){
+  if(!STATIC) return;
+  ['#console-btn','#connect-btn','#scan-status'].forEach(sel=>{ const e=$(sel); if(e) e.style.display='none'; });
 }
 
 function uniq(key){ return [...new Set(allSections.map(s=>s[key]).filter(Boolean))].sort(); }
@@ -117,10 +159,11 @@ function baseFiltered(skip){
     return true;
   });
 }
-const getFiltered = () => baseFiltered(null);
+// getFiltered = top-bar filters AND the applied advanced view tree.
+const getFiltered = () => baseFiltered(null).filter(s => evalNode(s, appliedTree));
 
 // ---------- render ----------
-function renderAll(){ renderTermButtons(); renderPipeline(); renderViewButtons(); syncButtonRows(); renderHead(); renderTable(); }
+function renderAll(){ renderTermButtons(); renderPipeline(); renderViewTiles(); syncButtonRows(); renderHead(); renderTable(); }
 
 function renderTermButtons(){
   const wrap=$('#term-buttons'); if(!wrap) return;
@@ -155,54 +198,8 @@ function renderPipeline(){
     .filter(m=>m && counts[m]).forEach(m=>bar.appendChild(mk(modShort(m),m,counts[m])));
 }
 
-// Saved custom views (localStorage) shown as smart-view buttons
-function savedViews(){ try{return JSON.parse(localStorage.getItem('sectrk-views')||'[]');}catch(e){return[];} }
-function renderViewButtons(){
-  const wrap=$('#view-buttons'); wrap.innerHTML='';
-  savedViews().forEach(v=>{
-    const n=countForFilters(v.f);
-    const b=el('button','smart-view-btn'+(sameFilters(v.f)?' active':''));
-    b.innerHTML=esc(v.label)+`<span class="view-count">${n.toLocaleString()}</span><span class="x" title="delete">✕</span>`;
-    b.onclick=(e)=>{ if(e.target.classList.contains('x')){e.stopPropagation();deleteView(v.id);return;} applyView(v.f); };
-    wrap.appendChild(b);
-  });
-  const add=el('button','smart-view-btn','+ Save view'); add.onclick=saveCurrentView; wrap.appendChild(add);
-}
-function countForFilters(f){
-  const full=Object.assign({college:'',campus:'',subject:'',modality:'',resolved:'',level:'',search:''},f);
-  return allSections.filter(s=>{
-    if(filters.term&&s.term!==filters.term)return false;  // saved views scope to the active term
-    if(full.college&&s.college!==full.college)return false;
-    if(full.campus&&s.campus!==full.campus)return false;
-    if(full.subject&&s.subject!==full.subject)return false;
-    if(full.modality&&s.instructional_method!==full.modality)return false;
-    if(full.level&&s.level!==full.level)return false;
-    if(full.resolved==='yes'&&!s.modality_resolved)return false;
-    if(full.resolved==='no'&&s.modality_resolved)return false;
-    if(full.resolved==='notes'&&!(s.notes&&s.notes.trim()))return false;
-    return true;
-  }).length;
-}
-function sameFilters(f){
-  const full=Object.assign({college:'',campus:'',subject:'',modality:'',resolved:'',level:''},f);
-  return ['college','campus','subject','modality','resolved','level'].every(k=>full[k]===filters[k]) && !filters.search;
-}
-function applyView(f){
-  const term=filters.term;  // term is an independent axis — keep it
-  Object.assign(filters,{college:'',campus:'',subject:'',modality:'',resolved:'',level:'',search:''},f,{term});
-  syncFilterControls(); renderAll();
-}
-function saveCurrentView(){
-  const name=prompt('Name this view:'); if(!name)return;
-  const v={id:'v'+Date.now(),label:name,f:{college:filters.college,campus:filters.campus,subject:filters.subject,
-    modality:filters.modality,resolved:filters.resolved,level:filters.level}};
-  const arr=savedViews(); arr.push(v); localStorage.setItem('sectrk-views',JSON.stringify(arr)); renderViewButtons();
-}
-function deleteView(id){ localStorage.setItem('sectrk-views',JSON.stringify(savedViews().filter(v=>v.id!==id))); renderViewButtons(); }
-
 // button-row active-state sync
 function syncButtonRows(){
-  document.querySelectorAll('#level-row .type-btn').forEach(b=>b.classList.toggle('active', b.dataset.v===filters.level));
   const rmap={'':'active-all','yes':'active-yes','no':'active-no','notes':'active-notes'};
   document.querySelectorAll('#resolved-row .proposal-btn').forEach(b=>{
     b.classList.remove('active-all','active-yes','active-no','active-notes');
@@ -212,47 +209,67 @@ function syncButtonRows(){
 
 function renderHead(){
   const tr=$('#thead-row'); tr.innerHTML='';
-  COLUMNS.forEach(c=>{
+  visibleColumns().forEach(c=>{
     const th=el('th',null,esc(c.label)+(sort.key===c.key?` <span class="arrow">${sort.dir>0?'▲':'▼'}</span>`:''));
     th.onclick=()=>{ if(sort.key===c.key)sort.dir*=-1; else {sort.key=c.key;sort.dir=1;} renderHead(); renderTable(); };
     tr.appendChild(th);
   });
 }
 
+// Plain-text value for one section column (used by table render + CSV export).
+function colText(s, key){
+  const c = SECTION_COLUMNS.find(x=>x.key===key);
+  if(key==='modality_resolved') return s.modality_resolved ? 'Yes' : '';
+  if(key==='notes')            return (s.notes||'');
+  let v = s[key];
+  if(c && c.fmt) v = c.fmt(v);
+  return (v==null?'':String(v));
+}
+// HTML cell for one section column.
+function colCell(s, key){
+  if(key==='course_code') return `<td class="code">${esc(s.course_code)}</td>`;
+  if(key==='college')     return `<td title="${esc(s.college)}">${esc(abbr(s.college))}</td>`;
+  if(key==='campus')      return `<td class="muted">${esc(s.campus)}</td>`;
+  if(key==='instructional_method') return `<td><span class="${modClass(s.instructional_method)}">${esc(s.instructional_method||'—')}</span></td>`;
+  if(key==='level')       return `<td><span class="pill lvl">${esc(s.level||'—')}</span></td>`;
+  if(key==='total_enrolled') return `<td class="enr">${(+s.total_enrolled||0)}</td>`;
+  if(key==='faculty_name') return `<td class="muted">${esc(s.faculty_name||'—')}</td>`;
+  if(key==='modality_resolved') return `<td>${s.modality_resolved?'<span class="resolved-yes">✓ Yes</span>':'<span class="resolved-no">—</span>'}</td>`;
+  if(key==='notes')       return `<td>${s.notes&&s.notes.trim()?'<span class="has-note">📝</span>':''}</td>`;
+  if(key==='faculty_email') return `<td class="muted">${esc(s.faculty_email||'—')}</td>`;
+  return `<td>${esc(s[key]||'')}</td>`;
+}
+
 function renderTable(){
+  const rows=sortedFiltered();
+  $('#summary').innerHTML = `<b>${rows.length.toLocaleString()}</b> of ${allSections.length.toLocaleString()} sections`+
+    ` · <b>${rows.reduce((n,s)=>n+(+s.total_enrolled||0),0).toLocaleString()}</b> seats enrolled`;
+  const cols=visibleColumns(), ncol=cols.length;
+  const tb=$('#tbody'); tb.innerHTML='';
+  rows.slice(0,2000).forEach(s=>{
+    const tr=el('tr','program-row '+rowModClass(s.instructional_method)+(expanded.has(s.id)?' open':''));
+    tr.onclick=(e)=>{ if(e.target.tagName!=='A') toggleRow(s.id); };
+    tr.innerHTML = cols.map(c=>colCell(s,c.key)).join('');
+    tb.appendChild(tr);
+    if(expanded.has(s.id)){
+      const dr=el('tr','detail-row'); const td=el('td'); td.colSpan=ncol;
+      td.appendChild(renderDetail(s)); dr.appendChild(td); tb.appendChild(dr);
+    }
+  });
+  if(rows.length>2000){ const tr=el('tr'); tr.innerHTML=`<td colspan="${ncol}" class="muted" style="text-align:center;padding:12px">Showing first 2,000 of ${rows.length.toLocaleString()} — narrow filters to see the rest.</td>`; tb.appendChild(tr); }
+}
+
+// Apply the active sort to the filtered rows (shared by render + CSV export).
+function sortedFiltered(){
   const rows=getFiltered();
   rows.sort((a,b)=>{
-    const col=COLUMNS.find(c=>c.key===sort.key);
+    const col=SECTION_COLUMNS.find(c=>c.key===sort.key);
     let x=a[sort.key], y=b[sort.key];
     if(col&&col.num){ return ((+x||0)-(+y||0))*sort.dir; }
     x=(x==null?'':String(x)).toLowerCase(); y=(y==null?'':String(y)).toLowerCase();
     return x<y?-sort.dir:x>y?sort.dir:0;
   });
-  $('#summary').innerHTML = `<b>${rows.length.toLocaleString()}</b> of ${allSections.length.toLocaleString()} sections`+
-    ` · <b>${rows.reduce((n,s)=>n+(+s.total_enrolled||0),0).toLocaleString()}</b> seats enrolled`;
-  const tb=$('#tbody'); tb.innerHTML='';
-  rows.slice(0,2000).forEach(s=>{
-    const tr=el('tr','program-row '+rowModClass(s.instructional_method)+(expanded.has(s.id)?' open':''));
-    tr.onclick=(e)=>{ if(e.target.tagName!=='A') toggleRow(s.id); };
-    tr.innerHTML =
-      `<td class="code">${esc(s.course_code)}</td>`+
-      `<td>${esc(s.section)}</td>`+
-      `<td>${esc(s.title)}</td>`+
-      `<td title="${esc(s.college)}">${esc(abbr(s.college))}</td>`+
-      `<td class="muted">${esc(s.campus)}</td>`+
-      `<td><span class="${modClass(s.instructional_method)}">${esc(s.instructional_method||'—')}</span></td>`+
-      `<td><span class="pill lvl">${esc(s.level||'—')}</span></td>`+
-      `<td class="enr">${(+s.total_enrolled||0)}</td>`+
-      `<td class="muted">${esc(s.faculty_name||'—')}</td>`+
-      `<td>${s.modality_resolved?'<span class="resolved-yes">✓ Yes</span>':'<span class="resolved-no">—</span>'}</td>`+
-      `<td>${s.notes&&s.notes.trim()?'<span class="has-note">📝</span>':''}</td>`;
-    tb.appendChild(tr);
-    if(expanded.has(s.id)){
-      const dr=el('tr','detail-row'); const td=el('td'); td.colSpan=COLUMNS.length;
-      td.appendChild(renderDetail(s)); dr.appendChild(td); tb.appendChild(dr);
-    }
-  });
-  if(rows.length>2000){ const tr=el('tr'); tr.innerHTML=`<td colspan="${COLUMNS.length}" class="muted" style="text-align:center;padding:12px">Showing first 2,000 of ${rows.length.toLocaleString()} — narrow filters to see the rest.</td>`; tb.appendChild(tr); }
+  return rows;
 }
 
 function toggleRow(id){ if(expanded.has(id))expanded.delete(id); else {expanded.clear(); expanded.add(id);} renderTable(); }
@@ -277,7 +294,7 @@ function renderDetail(s){
   if(ADMIN){
     tog.onclick=async()=>{ const nv=!s.modality_resolved; tog.disabled=true;
       const r=await saveResolvedField(s,nv); tog.disabled=false;
-      if(r&&r.ok){ s.modality_resolved=nv; tog.className='switch'+(nv?' on':''); tl.textContent=nv?'Yes':'No'; toast('Modality Resolved → '+(nv?'Yes':'No')); renderViewButtons(); }
+      if(r&&r.ok){ s.modality_resolved=nv; tog.className='switch'+(nv?' on':''); tl.textContent=nv?'Yes':'No'; toast('Modality Resolved → '+(nv?'Yes':'No')); renderViewTiles(); }
       else toast('Save failed'); };
   } else { tog.disabled=true; wrap.appendChild(el('span','readonly-note','  (set by the Graduate Dean’s office)')); }
   resWrap.appendChild(wrap); d.appendChild(resWrap);
@@ -289,7 +306,7 @@ function renderDetail(s){
   const saved=el('span','note-saved'); saved.style.display='none'; saved.textContent='Saved ✓';
   const who=s.updated_by?el('span','muted','last edited by '+esc(s.updated_by)):el('span');
   save.onclick=async()=>{ save.disabled=true; const r=await saveNoteField(s,ta.value); save.disabled=false;
-    if(r&&r.ok){ s.notes=ta.value; saved.style.display=''; setTimeout(()=>saved.style.display='none',2000); renderViewButtons(); }
+    if(r&&r.ok){ s.notes=ta.value; saved.style.display=''; setTimeout(()=>saved.style.display='none',2000); renderViewTiles(); }
     else toast('Save failed'); };
   actions.appendChild(save); actions.appendChild(saved); actions.appendChild(who);
   noteWrap.appendChild(ta); noteWrap.appendChild(actions); d.appendChild(noteWrap);
@@ -308,34 +325,553 @@ async function saveResolvedField(s, val){
     body:JSON.stringify({resolved:val, term:s.term, course:s.course_code, college:s.college, updated_by:'owner'})})).json();
 }
 
+// ══════════════════════════════════════════════════════════════════════════
+// Columns picker
+// ══════════════════════════════════════════════════════════════════════════
+function toggleSectionColPicker(e){
+  e.stopPropagation();
+  const dd=$('#section-col-dropdown'); if(!dd) return;
+  if(dd.classList.contains('open')){ dd.classList.remove('open'); return; }
+  _rebuildColDropdown(dd);
+  dd.classList.add('open');
+}
+function _rebuildColDropdown(dd){
+  dd.innerHTML =
+    `<div class="portfolio-col-selectall">
+        <button onclick="toggleAllSectionCols(true)">Select All</button>
+        <button onclick="toggleAllSectionCols(false)">Unselect All</button>
+     </div>` +
+    SECTION_COLUMNS.map(c=>`
+      <label class="portfolio-col-check">
+        <input type="checkbox" ${sectionVisibleCols.has(c.key)?'checked':''}
+               onchange="toggleSectionCol('${c.key}',this.checked)">
+        ${esc(c.label)}
+      </label>`).join('');
+}
+function toggleSectionCol(key, vis){
+  if(vis) sectionVisibleCols.add(key); else sectionVisibleCols.delete(key);
+  _saveSectionCols();
+  renderHead(); renderTable();
+}
+function toggleAllSectionCols(vis){
+  if(vis) SECTION_COLUMNS.forEach(c=>sectionVisibleCols.add(c.key));
+  else sectionVisibleCols.clear();
+  _saveSectionCols();
+  const dd=$('#section-col-dropdown'); if(dd&&dd.classList.contains('open')) _rebuildColDropdown(dd);
+  renderHead(); renderTable();
+}
+document.addEventListener('click', e=>{
+  const picker=$('#section-col-picker');
+  if(picker && !picker.contains(e.target)){
+    const dd=$('#section-col-dropdown'); if(dd) dd.classList.remove('open');
+  }
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// Views — filter-tree engine + modal (ported from the program tracker)
+// ══════════════════════════════════════════════════════════════════════════
+const SECTION_FILTER_FIELDS = [
+  {key:'term',        label:'Term',             type:'select', value:s=>s.term||''},
+  {key:'college',     label:'College',          type:'select', value:s=>s.college||''},
+  {key:'campus',      label:'Campus',           type:'select', value:s=>s.campus||''},
+  {key:'subject',     label:'Subject',          type:'select', value:s=>s.subject||''},
+  {key:'course',      label:'Course',           type:'text',   value:s=>s.course_code||''},
+  {key:'title',       label:'Title',            type:'text',   value:s=>s.title||''},
+  {key:'modality',    label:'Modality',         type:'select', value:s=>s.instructional_method||''},
+  {key:'level',       label:'Level',            type:'select', value:s=>s.level||''},
+  {key:'schedule',    label:'Schedule',         type:'select', value:s=>s.schedule||''},
+  {key:'meeting_time',label:'Meeting Time',     type:'text',   value:s=>s.meeting_time||''},
+  {key:'faculty',     label:'Faculty',          type:'text',   value:s=>s.faculty_name||''},
+  {key:'faculty_type',label:'Faculty Type',     type:'select', value:s=>s.faculty_type||''},
+  {key:'enrolled',    label:'Enrolled',         type:'text',   value:s=>String(s.total_enrolled==null?'':s.total_enrolled)},
+  {key:'resolved',    label:'Modality Resolved',type:'boolean',value:s=>s.modality_resolved?'Y':'N'},
+  {key:'has_notes',   label:'Has Notes',        type:'boolean',value:s=>(s.notes&&s.notes.trim())?'Y':'N'},
+  {key:'updated_by',  label:'Updated By',       type:'text',   value:s=>s.updated_by||''},
+];
+function _svField(key){ return SECTION_FILTER_FIELDS.find(f=>f.key===key); }
+function getFieldValues(key){
+  const f=_svField(key); if(!f) return [];
+  const set=new Set();
+  allSections.forEach(s=>set.add(f.value(s)));
+  return [...set].sort((a,b)=>String(a).localeCompare(String(b)));
+}
+
+let appliedTree = null;   // currently-applied advanced filter (or null)
+function makeEmptyGroup(conj){ return {type:'group', conj:conj||'all', children:[]}; }
+
+function evalNode(s, node){
+  if(!node) return true;
+  if(node.type==='group'){
+    const kids=node.children||[];
+    if(!kids.length) return true;
+    return node.conj==='any' ? kids.some(c=>evalNode(s,c)) : kids.every(c=>evalNode(s,c));
+  }
+  if(node.type==='rule') return evalRule(s, node);
+  return true;
+}
+function evalRule(s, rule){
+  const f=_svField(rule.field); if(!f) return true;
+  let v=String(f.value(s)==null?'':f.value(s));
+  const op=rule.op||'';
+  if(op==='is_set')   return v!=='';
+  if(op==='is_empty') return v==='';
+  if(f.type==='text'){
+    if(!rule.value) return true;
+    const q=String(rule.value).toLowerCase(), hay=v.toLowerCase();
+    if(op==='equals')      return hay===q;
+    if(op==='starts_with') return hay.startsWith(q);
+    return hay.includes(q);
+  }
+  const arr=Array.isArray(rule.value)?rule.value:(rule.value?[rule.value]:[]);
+  if(!arr.length) return true;
+  const hit=new Set(arr).has(v);
+  return op==='not_in' ? !hit : hit;
+}
+function _opsForType(t){
+  if(t==='text')    return [['contains','contains'],['equals','equals'],['starts_with','starts with'],['is_set','is set'],['is_empty','is not set']];
+  if(t==='boolean') return [['in','is'],['is_set','is set'],['is_empty','is not set']];
+  return [['in','is one of'],['not_in','is not one of'],['is_set','is set'],['is_empty','is not set']];
+}
+function _defaultRule(key){
+  const f=_svField(key)||SECTION_FILTER_FIELDS[0];
+  if(f.type==='text')    return {type:'rule', field:f.key, op:'contains', value:''};
+  if(f.type==='boolean') return {type:'rule', field:f.key, op:'in', value:['Y']};
+  return {type:'rule', field:f.key, op:'in', value:[]};
+}
+
+// ── View model ──────────────────────────────────────────────────────────────
+const _VIEWS_LS = 'sectrk-views-v1', _ACTIVE_LS = 'sectrk-active-view', _STARS_LS = 'sectrk-starred-v1';
+const SECTION_ALL_VIEW = { id:'all', name:'All sections', team:true, system:true,
+  state:{ visibleCols:null, filters:{}, tree:null } };
+
+let activeViewId = null;
+let sectionTeamViews = [];
+
+function getPersonalViews(){ try { return JSON.parse(localStorage.getItem(_VIEWS_LS)||'[]'); } catch(_){ return []; } }
+function setPersonalViews(v){ try { localStorage.setItem(_VIEWS_LS, JSON.stringify(v)); } catch(_){} }
+function getTeamViews(){ return sectionTeamViews; }
+function getAllViews(){ return [SECTION_ALL_VIEW, ...getTeamViews(), ...getPersonalViews()]; }
+function getViewById(id){ return getAllViews().find(v=>v.id===id) || null; }
+
+function getStarredIds(){ try { return new Set(JSON.parse(localStorage.getItem(_STARS_LS)||'[]')); } catch(_){ return new Set(); } }
+function setStarredIds(set){ try { localStorage.setItem(_STARS_LS, JSON.stringify([...set])); } catch(_){} }
+function toggleStar(id){ const s=getStarredIds(); s.has(id)?s.delete(id):s.add(id); setStarredIds(s); }
+
+function _isAdmin(){ return !STATIC; }
+
+async function hydrateTeamViews(data){
+  try {
+    if(STATIC){ sectionTeamViews = (data && data.team_views) || []; return; }
+    const r=await fetch(API+'/api/views');
+    if(r.ok){ const d=await r.json(); sectionTeamViews = Array.isArray(d) ? d : (d.views||[]); }
+  } catch(e){ sectionTeamViews = sectionTeamViews||[]; }
+}
+async function persistTeamViews(){
+  if(STATIC) return;
+  try {
+    await fetch(API+'/api/views', {method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(sectionTeamViews)});
+  } catch(e){ console.error('team view persist failed', e); }
+}
+
+// Snapshot / restore the top-bar filters (term is a real axis here, so it's in).
+function _snapshotFilters(){ return Object.assign({}, filters); }
+function _applyFilters(f){
+  f=f||{};
+  ['term','college','campus','subject','modality','resolved','level','search'].forEach(k=>{ filters[k]=f[k]||''; });
+  syncFilterControls();
+}
+function _resolveViewCols(state){
+  if(!state) return null;
+  return state.visibleCols || null;   // null = all
+}
+
+// Apply a named view: restore columns + top-bar filters + advanced tree.
+function applyView(id){
+  const view=getViewById(id); if(!view) return;
+  activeViewId=id;
+  try { localStorage.setItem(_ACTIVE_LS, id); } catch(_){}
+  const cols=_resolveViewCols(view.state);
+  if(cols===null){ sectionVisibleCols = new Set(SECTION_COLUMNS.filter(c=>!c.defaultHidden).map(c=>c.key)); }
+  else { sectionVisibleCols = new Set(cols); }
+  _saveSectionCols();
+  _applyFilters(view.state.filters||{});
+  appliedTree = view.state.tree ? JSON.parse(JSON.stringify(view.state.tree)) : null;
+  renderViewTiles();
+  renderAll();
+}
+
+// ── Modal state + open/close ──────────────────────────────────────────────
+let _pvDraftTree=null, _pvLoadedViewId=null, _pvMultiOpen=null, _pvSavingScope=null;
+
+function openViewsModal(){
+  const bd=$('#pv-modal-backdrop'); if(!bd) return;
+  _pvDraftTree = appliedTree ? JSON.parse(JSON.stringify(appliedTree)) : makeEmptyGroup('all');
+  _pvLoadedViewId = activeViewId;
+  _pvMultiOpen = null; _pvSavingScope = null;
+  bd.classList.add('open');
+  renderPvModal();
+}
+function closeViewsModal(){ const bd=$('#pv-modal-backdrop'); if(bd) bd.classList.remove('open'); _pvMultiOpen=null; }
+
+function renderPvModal(){ _renderPvSidebar(); _renderPvBuilder(); _renderPvFooter(); _renderPvCount(); renderViewTiles(); }
+
+function _pvPreviewCount(){
+  const saved=appliedTree;
+  appliedTree = (_pvDraftTree && (_pvDraftTree.children||[]).length) ? _pvDraftTree : null;
+  let n; try { n=getFiltered().length; } finally { appliedTree=saved; }
+  return n;
+}
+function _renderPvCount(){
+  const e=$('#pv-modal-count'); if(!e) return;
+  const n=_pvPreviewCount();
+  e.textContent = `${n.toLocaleString()} section${n===1?'':'s'} match`;
+}
+
+function _renderPvSidebar(){
+  const host=$('#pv-modal-sidebar'); if(!host) return;
+  const personal=getPersonalViews(), team=getTeamViews(), stars=getStarredIds();
+  const item=(v)=>{
+    const sel=v.id===_pvLoadedViewId, isStar=stars.has(v.id);
+    if(v.system){
+      return `<div class="pv-side-item pv-side-system${sel?' selected':''}" onclick="pvLoadView('${v.id}')">
+        <span class="pv-side-name">${esc(v.name)}</span>
+        <span class="pv-side-acts"><span class="pv-side-star on" title="Always shown">★</span></span></div>`;
+    }
+    const canModify = v.team ? _isAdmin() : true;
+    let acts='';
+    if(canModify){
+      acts += `<button class="pv-side-act" title="Move up" onclick="pvMoveById('${v.id}',-1,event)">↑</button>`;
+      acts += `<button class="pv-side-act" title="Move down" onclick="pvMoveById('${v.id}',1,event)">↓</button>`;
+      acts += `<button class="pv-side-act pv-side-act-del" title="Delete view" onclick="pvDeleteById('${v.id}',event)">✕</button>`;
+    }
+    acts += `<button class="pv-side-act pv-side-act-star${isStar?' on':''}" title="${isStar?'Unstar':'Star — show as a top tile'}" onclick="pvStarById('${v.id}',event)">${isStar?'★':'☆'}</button>`;
+    return `<div class="pv-side-item${sel?' selected':''}" onclick="pvLoadView('${v.id}')">
+      <span class="pv-side-name">${esc(v.name)}</span>
+      <span class="pv-side-acts">${acts}</span></div>`;
+  };
+  let html = `<button class="pv-side-newbtn" onclick="pvNewView()">+ New view</button>`;
+  html += `<div class="pv-side-section">Team ${_isAdmin()?'<span class="pv-admin-pill">ADMIN</span>':''}</div>`;
+  html += item(SECTION_ALL_VIEW);
+  html += team.length ? team.map(item).join('') : '';
+  html += `<div class="pv-side-section">Personal</div>`;
+  html += personal.length ? personal.map(item).join('') : '<div class="pv-side-empty">None saved yet</div>';
+  host.innerHTML = html;
+}
+
+function _renderPvBuilder(){ const host=$('#pv-modal-main'); if(!host) return; host.innerHTML=_renderPvGroup(_pvDraftTree,''); }
+function _renderPvGroup(group, path){
+  const kids=group.children||[];
+  const conjSel=`<select class="pv-conj" onchange="pvbSetConj('${path}', this.value)">
+    <option value="all"${group.conj==='all'?' selected':''}>all</option>
+    <option value="any"${group.conj==='any'?' selected':''}>any</option></select>`;
+  const head=`<div class="pvb-group-head">Match ${conjSel} of the following:
+    ${path?`<button class="pvb-iconbtn" title="Remove group" onclick="pvbRemove('${path}')">✕</button>`:''}</div>`;
+  const body=kids.map((c,i)=>{
+    const childPath=path?`${path}.${i}`:`${i}`;
+    return c.type==='group' ? `<div class="pvb-group">${_renderPvGroup(c,childPath)}</div>` : _renderPvRule(c,childPath);
+  }).join('');
+  const add=`<div class="pvb-add-row">
+    <button onclick="pvbAddRule('${path}')">+ Add rule</button>
+    <button onclick="pvbAddGroup('${path}')">⊕ Add nested group</button></div>`;
+  return head+body+add;
+}
+function _renderPvRule(rule, path){
+  const f=_svField(rule.field)||SECTION_FILTER_FIELDS[0];
+  const fieldSel=`<select onchange="pvbSetField('${path}', this.value)">${
+    SECTION_FILTER_FIELDS.map(x=>`<option value="${x.key}"${x.key===rule.field?' selected':''}>${esc(x.label)}</option>`).join('')}</select>`;
+  const opSel=`<select onchange="pvbSetOp('${path}', this.value)">${
+    _opsForType(f.type).map(([op,lbl])=>`<option value="${op}"${op===rule.op?' selected':''}>${lbl}</option>`).join('')}</select>`;
+  return `<div class="pvb-rule">${fieldSel}${opSel}${_renderPvRuleValue(rule,f,path)}
+    <button class="pvb-iconbtn" title="Remove rule" onclick="pvbRemove('${path}')">✕</button></div>`;
+}
+function _renderPvRuleValue(rule, f, path){
+  if(rule.op==='is_set'||rule.op==='is_empty') return '';
+  if(f.type==='text'){
+    return `<input type="text" class="pvb-text" value="${esc(rule.value||'')}" oninput="pvbSetValue('${path}', this.value)" placeholder="search…">`;
+  }
+  if(f.type==='boolean'){
+    const vals=Array.isArray(rule.value)?rule.value:(rule.value?[rule.value]:[]);
+    return `<label class="pvb-bool"><input type="checkbox" ${vals.includes('Y')?'checked':''} onchange="pvbToggleMulti('${path}','Y')"> Yes</label>
+            <label class="pvb-bool"><input type="checkbox" ${vals.includes('N')?'checked':''} onchange="pvbToggleMulti('${path}','N')"> No</label>`;
+  }
+  const vals=Array.isArray(rule.value)?rule.value:[];
+  const chips=vals.length ? vals.map(v=>`<span class="pvb-chip">${esc(v||'(blank)')}</span>`).join('') : '<span class="pvb-values-empty">choose values…</span>';
+  let pop='';
+  if(_pvMultiOpen===path){
+    const all=getFieldValues(rule.field);
+    pop=`<div class="pvb-multi-pop" onclick="event.stopPropagation()">${
+      all.map(v=>`<label><input type="checkbox" ${vals.includes(v)?'checked':''} onchange="pvbToggleMulti('${path}','${_escJs(v)}')"> ${esc(v||'(blank)')}</label>`).join('')}</div>`;
+  }
+  return `<span class="pvb-valwrap"><span class="pvb-values" onclick="pvbOpenMulti('${path}', event)">${chips}</span>${pop}</span>`;
+}
+function _escJs(s){ return String(s==null?'':s).replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
+
+function _renderPvFooter(){
+  const host=$('#pv-modal-footer'); if(!host) return;
+  if(_pvSavingScope){
+    host.innerHTML=`<span class="pv-save-form">
+      <input id="pv-name-input" class="pv-name-input" type="text" maxlength="60" placeholder="Name this view…"
+             onkeydown="if(event.key==='Enter')pvConfirmSave();else if(event.key==='Escape')pvCancelSave()">
+      <button class="pv-btn pv-btn-primary" onclick="pvConfirmSave()">Save ${_pvSavingScope==='team'?'as Team View':'as My View'}</button>
+      <button class="pv-btn pv-btn-ghost" onclick="pvCancelSave()">Cancel</button></span>`;
+    setTimeout(()=>{ const i=$('#pv-name-input'); if(i)i.focus(); }, 30);
+    return;
+  }
+  const loaded=_pvLoadedViewId ? getViewById(_pvLoadedViewId) : null;
+  const canEdit = loaded && !loaded.system && (loaded.team ? _isAdmin() : true);
+  const left=`<button class="pv-btn pv-btn-ghost" onclick="closeViewsModal()">Close</button>`;
+  let acts='';
+  acts += `<button class="pv-btn pv-btn-ghost" onclick="pvStartSave('personal')" title="Save as a new personal view">Save as My View</button>`;
+  if(_isAdmin()) acts += `<button class="pv-btn pv-btn-ghost" onclick="pvStartSave('team')" title="Save as a new team view">Save as Team View</button>`;
+  if(canEdit) acts += `<button class="pv-btn pv-btn-ghost" onclick="pvUpdateLoaded()" title="Save current columns, filters & rules to this view">↻ Update</button>`;
+  acts += `<button class="pv-btn pv-btn-primary" onclick="pvApplyDraft()" title="Apply to the table">Apply</button>`;
+  host.innerHTML = `${left}<span style="flex:1"></span><span class="pv-footer-actions">${acts}</span>`;
+}
+
+function pvApplyDraft(){
+  if(_pvLoadedViewId && getViewById(_pvLoadedViewId)){
+    applyView(_pvLoadedViewId);
+  } else {
+    activeViewId=null;
+    try { localStorage.setItem(_ACTIVE_LS,''); } catch(_){}
+  }
+  appliedTree = (_pvDraftTree && (_pvDraftTree.children||[]).length) ? JSON.parse(JSON.stringify(_pvDraftTree)) : null;
+  closeViewsModal();
+  renderViewTiles();
+  renderAll();
+}
+
+function pvStarById(id, ev){ if(ev)ev.stopPropagation(); if(id==='all')return; toggleStar(id); renderPvModal(); }
+function pvDeleteById(id, ev){ if(ev)ev.stopPropagation(); if(id==='all')return; pvDeleteView(id); }
+function pvMoveById(id, dir, ev){
+  if(ev)ev.stopPropagation(); if(id==='all')return;
+  const view=getViewById(id); if(!view) return;
+  if(view.team){
+    if(!_isAdmin()) return;
+    const arr=sectionTeamViews, i=arr.findIndex(v=>v.id===id), j=i+dir;
+    if(i<0||j<0||j>=arr.length) return;
+    [arr[i],arr[j]]=[arr[j],arr[i]]; persistTeamViews();
+  } else {
+    const arr=getPersonalViews(), i=arr.findIndex(v=>v.id===id), j=i+dir;
+    if(i<0||j<0||j>=arr.length) return;
+    [arr[i],arr[j]]=[arr[j],arr[i]]; setPersonalViews(arr);
+  }
+  renderPvModal();
+}
+
+// Tree mutators (path = child indices like "0.2.1"; "" = root)
+function _pvWalk(path){
+  if(!_pvDraftTree) return null;
+  if(!path) return {node:_pvDraftTree, parent:null, index:-1};
+  const parts=path.split('.').map(n=>parseInt(n,10));
+  let node=_pvDraftTree, parent=null, idx=-1;
+  for(const i of parts){ if(!node||node.type!=='group') return null; parent=node; idx=i; node=(node.children||[])[i]; }
+  return {node, parent, index:idx};
+}
+function pvbAddRule(path){ const w=_pvWalk(path); if(w&&w.node.type==='group'){ w.node.children.push(_defaultRule(SECTION_FILTER_FIELDS[0].key)); renderPvModal(); } }
+function pvbAddGroup(path){ const w=_pvWalk(path); if(w&&w.node.type==='group'){ w.node.children.push(makeEmptyGroup(w.node.conj==='all'?'any':'all')); renderPvModal(); } }
+function pvbRemove(path){ const w=_pvWalk(path); if(w&&w.parent){ w.parent.children.splice(w.index,1); renderPvModal(); } }
+function pvbSetConj(path, conj){ const w=_pvWalk(path); if(w&&w.node.type==='group'){ w.node.conj=conj==='any'?'any':'all'; renderPvModal(); } }
+function pvbSetField(path, key){ const w=_pvWalk(path); if(w&&w.node.type==='rule'&&w.node.field!==key){ Object.assign(w.node,_defaultRule(key)); renderPvModal(); } }
+function pvbSetOp(path, op){ const w=_pvWalk(path); if(w&&w.node.type==='rule'){ w.node.op=op; const t=(_svField(w.node.field)||{}).type; if(op==='is_set'||op==='is_empty') w.node.value=null; else if(!w.node.value||(Array.isArray(w.node.value)&&!w.node.value.length)) w.node.value=(t==='text')?'':[]; renderPvModal(); } }
+function pvbSetValue(path, val){ const w=_pvWalk(path); if(w&&w.node.type==='rule'){ w.node.value=val; _renderPvCount(); } }
+function pvbToggleMulti(path, v){ const w=_pvWalk(path); if(w&&w.node.type==='rule'){ const a=Array.isArray(w.node.value)?w.node.value.slice():[]; const i=a.indexOf(v); i===-1?a.push(v):a.splice(i,1); w.node.value=a; renderPvModal(); } }
+function pvbOpenMulti(path, ev){ ev&&ev.stopPropagation(); _pvMultiOpen=(_pvMultiOpen===path?null:path); _renderPvBuilder(); }
+document.addEventListener('click', e=>{
+  if(!_pvMultiOpen) return;
+  if(!e.target.closest('.pvb-multi-pop') && !e.target.closest('.pvb-values')){ _pvMultiOpen=null; _renderPvBuilder(); }
+});
+
+function pvNewView(){ _pvDraftTree=makeEmptyGroup('all'); _pvLoadedViewId=null; _pvSavingScope=null; renderPvModal(); }
+function pvLoadView(id){
+  const view=getViewById(id); if(!view) return;
+  _pvDraftTree=(view.state&&view.state.tree)?JSON.parse(JSON.stringify(view.state.tree)):makeEmptyGroup('all');
+  _pvLoadedViewId=id; _pvSavingScope=null; _pvMultiOpen=null;
+  renderPvModal();
+}
+function pvDeleteView(id, ev){
+  ev&&ev.stopPropagation();
+  if(id.startsWith('team_')){ sectionTeamViews=sectionTeamViews.filter(v=>v.id!==id); persistTeamViews(); }
+  else { setPersonalViews(getPersonalViews().filter(v=>v.id!==id)); }
+  if(activeViewId===id) activeViewId=null;
+  if(_pvLoadedViewId===id) _pvLoadedViewId=null;
+  renderPvModal();
+}
+function pvStartSave(scope){ _pvSavingScope=scope; _renderPvFooter(); }
+function pvCancelSave(){ _pvSavingScope=null; _renderPvFooter(); }
+function _currentViewState(){
+  return {
+    visibleCols:[...sectionVisibleCols],
+    filters:_snapshotFilters(),
+    tree:(_pvDraftTree&&(_pvDraftTree.children||[]).length)?JSON.parse(JSON.stringify(_pvDraftTree)):null,
+  };
+}
+function pvConfirmSave(){
+  const inp=$('#pv-name-input'); const name=(inp&&inp.value||'').trim();
+  if(!name){ inp&&inp.focus(); return; }
+  const scope=_pvSavingScope||'personal';
+  const state=_currentViewState();
+  let id;
+  if(scope==='team'){ id='team_'+Date.now(); sectionTeamViews.push({id, name, team:true, state}); persistTeamViews(); }
+  else { id='personal_'+Date.now(); const views=getPersonalViews(); views.push({id, name, team:false, state}); setPersonalViews(views); }
+  _pvLoadedViewId=id; _pvSavingScope=null;
+  pvApplyDraft();
+}
+function pvUpdateLoaded(){
+  const id=_pvLoadedViewId; if(!id) return;
+  const state=_currentViewState();
+  if(id.startsWith('team_')){ const v=sectionTeamViews.find(x=>x.id===id); if(v){ v.state=state; persistTeamViews(); } }
+  else { const views=getPersonalViews(); const v=views.find(x=>x.id===id); if(v){ v.state=state; setPersonalViews(views); } }
+  pvApplyDraft();
+}
+
+// Views button label + starred-view tile bar.
+function renderViewTiles(){
+  const btn=$('#views-btn');
+  if(btn) btn.innerHTML = '★ Views' + (_isAdmin()?' <span class="pv-admin-pill">ADMIN</span>':'');
+  const bar=$('#view-tiles'); if(!bar) return;
+  const stars=getStarredIds();
+  const starredViews=[...getTeamViews(), ...getPersonalViews()].filter(v=>stars.has(v.id));
+  const tileViews=[SECTION_ALL_VIEW, ...starredViews];
+  bar.style.display='flex';
+  function countForView(v){
+    try {
+      const savedSnap=_snapshotFilters(), savedTree=appliedTree;
+      _applyFilters((v&&v.state&&v.state.filters)||{});
+      appliedTree=(v&&v.state&&v.state.tree)?v.state.tree:null;
+      const n=getFiltered().length;
+      _applyFilters(savedSnap); appliedTree=savedTree;
+      return n;
+    } catch(_){ return '—'; }
+  }
+  bar.innerHTML = tileViews.map(v=>{
+    const cnt=countForView(v);
+    const active=(v.id==='all')?(!activeViewId||activeViewId==='all'):(v.id===activeViewId);
+    return `<button class="pv-tile${active?' active':''}" onclick="applyView('${v.id}')" title="${esc(v.name)}">
+      <span class="pv-tile-count">${typeof cnt==='number'?cnt.toLocaleString():cnt}</span>
+      <span class="pv-tile-label">${esc(v.name)}</span></button>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// Console
+// ══════════════════════════════════════════════════════════════════════════
+function openConsoleModal(){ const m=$('#console-modal'); if(!m) return; m.style.display='flex'; loadConsoleData(); }
+function closeConsoleModal(){ const m=$('#console-modal'); if(m) m.style.display='none'; }
+function closeConsoleModalIfBackdrop(event){ if(event.target.id==='console-modal') closeConsoleModal(); }
+async function loadConsoleData(){
+  const body=$('#console-modal-body'); body.innerHTML='Loading…';
+  try {
+    let data;
+    if(STATIC){
+      data = { last_fetch:lastFetch, refresh_date:refreshDate, section_count:allSections.length,
+        per_term: bakedPerTerm || _computePerTerm(), airtable:true, notes_count:null, connect:null };
+    } else {
+      const r=await fetch(API+'/api/console'); if(!r.ok) throw new Error('HTTP '+r.status);
+      data=await r.json();
+    }
+    body.innerHTML=renderConsoleContent(data);
+  } catch(e){ body.innerHTML=`<p style="color:#b91c1c">Could not load console data: ${esc(e.message)}</p>`; }
+}
+function _computePerTerm(){ const m={}; allSections.forEach(s=>{ const t=s.term||'(none)'; m[t]=(m[t]||0)+1; }); return m; }
+function _consoleTs(s){ try { return new Date(s).toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})+' ET'; } catch(_){ return s||'—'; } }
+function renderConsoleContent(d){
+  const row=(k,v)=>`<tr style="border-top:1px solid #e2e8f0"><td style="padding:6px 8px;color:#64748b;white-space:nowrap">${esc(k)}</td><td style="padding:6px 8px">${v}</td></tr>`;
+  let html='<h3 style="margin:0 0 10px">Data status</h3>';
+  html+='<table style="width:100%;border-collapse:collapse;font-size:13px">';
+  html+=row('Last pull', d.last_fetch?_consoleTs(d.last_fetch):'<span style="color:#94a3b8">—</span>');
+  html+=row('Registrar refresh', esc(d.refresh_date||'—'));
+  html+=row('Total sections', `<b>${(d.section_count||0).toLocaleString()}</b>`);
+  html+='</table>';
+
+  const pt=d.per_term||{};
+  const terms=Object.keys(pt).sort((a,b)=>{ const ia=TERM_ORDER.indexOf(a), ib=TERM_ORDER.indexOf(b); if(ia!==-1||ib!==-1) return (ia===-1?99:ia)-(ib===-1?99:ib); return a.localeCompare(b); });
+  if(terms.length){
+    html+='<h3 style="margin:18px 0 10px">Sections per term</h3>';
+    html+='<table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="background:#f1f5f9;text-align:left">'
+      +'<th style="padding:5px 8px">Term</th><th style="padding:5px 8px">Sections</th></tr></thead><tbody>';
+    terms.forEach(t=>{ html+=`<tr style="border-top:1px solid #e2e8f0"><td style="padding:5px 8px">${esc(t)}</td><td style="padding:5px 8px">${(pt[t]||0).toLocaleString()}</td></tr>`; });
+    html+='</tbody></table>';
+  }
+
+  html+='<h3 style="margin:18px 0 10px">Notes store</h3>';
+  html+='<table style="width:100%;border-collapse:collapse;font-size:13px">';
+  html+=row('Airtable connected', d.airtable?'<span style="color:#15803d">✓ Yes</span>':'<span style="color:#b45309">No (local fallback)</span>');
+  if(d.notes_count!=null) html+=row('Notes on file', (d.notes_count||0).toLocaleString());
+  html+='</table>';
+
+  const c=d.connect;
+  if(c){
+    html+='<h3 style="margin:18px 0 10px">Last update</h3>';
+    html+='<table style="width:100%;border-collapse:collapse;font-size:13px">';
+    if(c.running) html+=row('Status', '<span style="color:#2563eb">Running…</span>');
+    else if(c.ok===true) html+=row('Status', `<span style="color:#15803d">✓ OK — ${(c.count||0).toLocaleString()} sections</span>`);
+    else if(c.ok===false) html+=row('Status', `<span style="color:#b91c1c">✗ ${esc(c.error||'failed')}</span>`);
+    else html+=row('Status', '<span style="color:#94a3b8">No update this session</span>');
+    if(c.finished) html+=row('Finished', _consoleTs(c.finished));
+    html+='</table>';
+  }
+  return html;
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// Export
+// ══════════════════════════════════════════════════════════════════════════
+function exportSectionsCsv(){
+  const rows=sortedFiltered();
+  const cols=visibleColumns();
+  const headers=cols.map(c=>c.label);
+  const csvRows=rows.map(s=>cols.map(c=>colText(s,c.key)));
+  const csv=[headers,...csvRows].map(r=>r.map(cell=>{
+    const v=String(cell==null?'':cell);
+    return /[",\n]/.test(v)?`"${v.replace(/"/g,'""')}"`:v;
+  }).join(',')).join('\n');
+  const blob=new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'});
+  const term=(filters.term||'all').replace(/\s+/g,'_');
+  const date=new Date().toISOString().slice(0,10);
+  const fname=`sections_${term}_${date}.csv`;
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a'); a.href=url; a.download=fname;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 // ---------- connection button ----------
+function setScanStatus(html, running){
+  const e=$('#scan-status'); if(!e) return;
+  e.innerHTML=html||''; e.classList.toggle('running', !!running);
+}
 async function connectNow(){
   const btn=$('#connect-btn'); if(!btn||btn.disabled)return;
   if(STATIC){ window._staticConnect&&window._staticConnect(); return; }
   btn.disabled=true; btn.innerHTML='<span class="spin"></span> Updating…';
+  setScanStatus('<span class="spin"></span> Updating…', true);
   try{
     await fetch(API+'/api/connect',{method:'POST'});
     const poll=async()=>{ const st=await (await fetch(API+'/api/status')).json();
       if(st.running){ setTimeout(poll,2500); return; }
       btn.disabled=false; btn.innerHTML='↻ Update data';
-      if(st.ok){ toast('Updated — '+(st.count||'?')+' sections'); await load(); } else toast('Update failed: '+(st.error||'')); };
+      if(st.ok){ setScanStatus('Updated '+(st.count||'?').toLocaleString()+' sections · '+fmtTime(st.finished||new Date().toISOString()), false); toast('Updated — '+(st.count||'?')+' sections'); await load(); }
+      else { setScanStatus('Update failed: '+esc(st.error||''), false); toast('Update failed: '+(st.error||'')); } };
     setTimeout(poll,2500);
-  }catch(e){ btn.disabled=false; btn.innerHTML='↻ Update data'; toast('Cannot reach local server'); }
+  }catch(e){ btn.disabled=false; btn.innerHTML='↻ Update data'; setScanStatus('Cannot reach local server', false); toast('Cannot reach local server'); }
 }
-window.connectNow=connectNow;
 
 // ---------- button-row + filter handlers ----------
-window.setLevel=v=>{ filters.level=(filters.level===v?'':v); renderAll(); };
 window.setResolved=v=>{ filters.resolved=(filters.resolved===v?'':v); renderAll(); };
 function bindControls(){
+  $('#f-level').onchange=e=>{filters.level=e.target.value;renderAll();};
   $('#f-college').onchange=e=>{filters.college=e.target.value;renderAll();};
   $('#f-campus').onchange=e=>{filters.campus=e.target.value;renderAll();};
   $('#f-subject').onchange=e=>{filters.subject=e.target.value;renderAll();};
   $('#f-search').oninput=e=>{filters.search=e.target.value;renderTable();};
 }
 function syncFilterControls(){
-  $('#f-college').value=filters.college; $('#f-campus').value=filters.campus;
-  $('#f-subject').value=filters.subject; $('#f-search').value=filters.search;
+  const lv=$('#f-level'), cs=$('#f-college'), ca=$('#f-campus'), su=$('#f-subject'), se=$('#f-search');
+  if(lv) lv.value=filters.level;
+  if(cs) cs.value=filters.college; if(ca) ca.value=filters.campus;
+  if(su) su.value=filters.subject; if(se) se.value=filters.search;
 }
 window.clearFilters=()=>{ const term=filters.term; Object.keys(filters).forEach(k=>filters[k]=''); filters.term=term; syncFilterControls(); renderAll(); };
 
@@ -343,4 +879,36 @@ function toast(msg){ const t=$('#toast'); t.textContent=msg; t.classList.add('sh
 
 function boot(){ bindControls(); load(); }
 if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot); else boot();
+
+// ---------- expose inline-handler globals ----------
+window.connectNow=connectNow;
+window.openViewsModal=openViewsModal;
+window.closeViewsModal=closeViewsModal;
+window.applyView=applyView;
+window.pvNewView=pvNewView;
+window.pvLoadView=pvLoadView;
+window.pvStarById=pvStarById;
+window.pvMoveById=pvMoveById;
+window.pvDeleteById=pvDeleteById;
+window.pvbAddRule=pvbAddRule;
+window.pvbAddGroup=pvbAddGroup;
+window.pvbRemove=pvbRemove;
+window.pvbSetConj=pvbSetConj;
+window.pvbSetField=pvbSetField;
+window.pvbSetOp=pvbSetOp;
+window.pvbSetValue=pvbSetValue;
+window.pvbToggleMulti=pvbToggleMulti;
+window.pvbOpenMulti=pvbOpenMulti;
+window.pvStartSave=pvStartSave;
+window.pvCancelSave=pvCancelSave;
+window.pvConfirmSave=pvConfirmSave;
+window.pvUpdateLoaded=pvUpdateLoaded;
+window.pvApplyDraft=pvApplyDraft;
+window.toggleSectionColPicker=toggleSectionColPicker;
+window.toggleSectionCol=toggleSectionCol;
+window.toggleAllSectionCols=toggleAllSectionCols;
+window.exportSectionsCsv=exportSectionsCsv;
+window.openConsoleModal=openConsoleModal;
+window.closeConsoleModal=closeConsoleModal;
+window.closeConsoleModalIfBackdrop=closeConsoleModalIfBackdrop;
 })();

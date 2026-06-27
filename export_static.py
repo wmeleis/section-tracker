@@ -57,9 +57,22 @@ def _load_or_create_salt():
     return os.urandom(16)
 
 
+def _load_team_views():
+    """Shared (team) section views, baked into the static payload read-only.
+    Personal views still live in each browser's localStorage."""
+    p = os.path.join(HERE, 'data', 'section_views.json')
+    try:
+        with open(p) as f:
+            data = json.load(f)
+        return data.get('views', []) if isinstance(data, dict) else (data or [])
+    except Exception:
+        return []
+
+
 def export_data(salt, key):
     sections = db.get_all_sections()
     notes = notes_store.get_all_notes()
+    per_term = {}
     for s in sections:
         n = notes.get(s['id'], {})  # id = "{term}|{crn}"
         s['notes'] = n.get('notes', '')
@@ -68,11 +81,15 @@ def export_data(salt, key):
         # trim heavy fields not shown on the shared table (keeps the payload small)
         s.pop('course_description', None)
         s.pop('fetched_at', None)
+        t = s.get('term', '') or '(none)'
+        per_term[t] = per_term.get(t, 0) + 1
     payload = {
         'sections': sections,
         'last_fetch': db.get_meta('last_fetch'),
         'refresh_date': db.get_meta('refresh_date'),
         'is_admin': False,
+        'per_term': per_term,
+        'team_views': _load_team_views(),
         'airtable': {
             'base': notes_store.AIRTABLE_BASE,
             'table': notes_store.AIRTABLE_TABLE,
@@ -238,8 +255,10 @@ def build():
     body = body.replace('/static/', '')
     # hidden until the gate unlocks (boot() reveals it) — gate is now a sibling
     body = body.replace('<div id="app-root">', '<div id="app-root" style="display:none">', 1)
-    # drop the Update button on the static site (no local server)
-    body = body.replace('<button class="btn btn-primary" id="connect-btn" onclick="connectNow()">↻ Update data</button>', '')
+    # drop the local-server-only buttons on the static site (Console + Update);
+    # Views (team read-only), Columns, and Export stay.
+    body = body.replace('<button class="header-secondary-btn" id="console-btn" onclick="openConsoleModal()">Console</button>', '')
+    body = body.replace('<button class="header-secondary-btn" id="connect-btn" onclick="connectNow()">↻ Update data</button>', '')
     body += '<div class="toast" id="toast"></div>'
     with open(os.path.join(DOCS, 'index.html'), 'w') as f:
         f.write(build_index(body))
