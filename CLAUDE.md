@@ -65,11 +65,29 @@ only thing baked into the daily snapshot.
 | `static/app.js`, `static/style.css`, `templates/dashboard.html` | Frontend |
 
 ## UI
-Modality bar (tile per Instructional Method, click to filter) · view chips
-(built-in modality views + "Modality unresolved/resolved", "Has notes", + custom
-saved views in localStorage) · filters (College, Campus, Subject, Modality,
-Resolved, Grad/Undergrad, search) · sortable expandable table; each row expands
-to section detail + Notes editor + Modality Resolved toggle.
+Modality bar (tile per Instructional Method, click to filter) · **Term** row
+(Fall/Spring/Summer/All, default Fall) · **Resolved** row (All/Unresolved/
+Resolved/Has notes) · filter dropdowns (**Level**, College, Campus, Subject) +
+search · sortable expandable table; each row expands to section detail + Notes
+editor + Modality Resolved toggle. (Level was a button row; it's now a dropdown.)
+
+**Header tools (ported from the program tracker):**
+- **★ Views** — full saved-Views system: a filter-tree builder modal (recursive
+  AND/OR groups of rules over `SECTION_FILTER_FIELDS`), **Team** views (admin-only
+  edit; `GET/POST /api/views` → `data/section_views.json`, baked into the static
+  payload as `team_views`, read-only on the static site) + **Personal** views
+  (`localStorage['sectrk-views-v1']`), a permanent **All sections** system view,
+  star tiles above the table (`localStorage['sectrk-starred-v1']`), draft-until-
+  Apply, live match count. Admin = `!window._staticMode` (purple ADMIN pill). A
+  view snapshots visible columns + the full top-bar filter state (incl. term) + tree.
+- **⊞ Columns** — show/hide table columns (`SECTION_COLUMNS`; `defaultHidden`:
+  Term/CRN/Schedule/Meeting Time/Location/Faculty Email). Persisted in
+  `localStorage['sectrk-cols']`.
+- **⤓ Export** — CSV of the currently-filtered rows × visible columns.
+- **Console** — data-status modal (`/api/console`: last pull, registrar refresh,
+  total + per-term counts, notes-store status, last update result). Local-only.
+- **↻ Update data** — re-pull + rebuild + deploy, with `#scan-status` feedback.
+  Local-only (stripped on the static site).
 
 ## Deploy / publishing (gh-pages, repo-size safe)
 `docs/` is gitignored on `main`. `deploy.py` builds `docs/` into a throwaway temp
