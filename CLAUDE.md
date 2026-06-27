@@ -28,6 +28,22 @@ site** (the PAT JSON's `site` key points elsewhere — don't use it). PAT in
 the DB primary key are `"{term}|{crn}"`. The dashboard's **Term** row (first
 control) scopes everything to one term (default Fall 2026; "All" shows every term).
 
+**Special topics + times offered (two derived fields).**
+- `special_topics` (Yes/blank) — detected from the section **title alone** (not the
+  Registrar's summary sheet), `fetch_active_classes.is_special_topic`: explicit
+  markers only ("Special Topics"/"Spec Top"/leading "ST:"/"ST-"/"ST "). ~99%
+  recall / ~100% precision vs the summary, and it catches ST courses the summary
+  omits. Computed in `_make_section`.
+- `times_offered` (int, blank when unmatched) — from the **Special Topic Summary**
+  Tableau view (`fetch_special_topics.py`; REST `/views/{id}/data` works directly,
+  no custom view). Long format → "Total Number of Sections" per Course
+  ("<Subject> <Number> <Title>"), keyed PER TOPIC. Overlaid in `fetch_and_parse`
+  onto special-topics sections via a normalized subject+number+title join
+  (~143/148 match; the rest the summary omits). Term-agnostic (cumulative count).
+- Both are `defaultHidden` columns (⊞ Columns) + Views filter fields. Times
+  Offered uses a **number** field type in the Views engine (at least / at most /
+  equals), so you can filter e.g. recurring topics offered ≥ N times.
+
 The feed is row-per-(CRN × meeting/faculty); `fetch_active_classes.parse_sections`
 collapses to **one row per CRN**, merging multi-valued faculty/meeting/location,
 and drops administrative placeholders (empty Subject / "Administrative Non-CEU").
