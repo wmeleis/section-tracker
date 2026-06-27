@@ -98,6 +98,14 @@ remains as buttons. There is no longer a modality "pipeline" tile bar.)
   star tiles above the table (`localStorage['sectrk-starred-v1']`), draft-until-
   Apply, live match count. Admin = `!window._staticMode` (purple ADMIN pill). A
   view snapshots visible columns + the full top-bar filter state (incl. term) + tree.
+  - **Starred tiles seed for everyone:** a team view carrying `"starred": true`
+    in `section_views.json` auto-stars on each browser's first sight
+    (`initStarredIfNeeded`, tracked via `localStorage['sectrk-starred-seen-v1']`
+    so a user's later un-star sticks) — so an admin-starred team view appears as a
+    tile for all users (incl. colleges on the static site), like the student page.
+    An admin star/unstar on a team view persists `starred` back to the shared file
+    (`pvStarById`). Shipped starred team views: **Live Cast courses**
+    (Modality = Live Cast) and **Special topics — 2+ prior offerings**.
 - **⊞ Columns** — show/hide table columns (`SECTION_COLUMNS`; `defaultHidden`:
   Term/CRN/Schedule/Meeting Time/Location/Faculty Email). Persisted in
   `localStorage['sectrk-cols']`.
