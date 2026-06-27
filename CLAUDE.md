@@ -25,8 +25,8 @@ site** (the PAT JSON's `site` key points elsewhere — don't use it). PAT in
 `/api/exp/sites/{site}/customviews/{cv}/data`. ~25k sections across 3 terms.
 
 **Term is part of the key.** CRNs repeat across terms, so every section's id and
-the DB primary key are `"{term}|{crn}"`. The dashboard's **Term** row (first
-control) scopes everything to one term (default Fall 2026; "All" shows every term).
+the DB primary key are `"{term}|{crn}"`. The dashboard's **Term** dropdown filter
+scopes everything to one term (default Fall 2026; "All terms" shows every term).
 
 **Special topics + times offered (two derived fields).**
 - `special_topics` (Yes/blank) — detected from the section **title alone** (not the
@@ -81,11 +81,13 @@ only thing baked into the daily snapshot.
 | `static/app.js`, `static/style.css`, `templates/dashboard.html` | Frontend |
 
 ## UI
-Modality bar (tile per Instructional Method, click to filter) · **Term** row
-(Fall/Spring/Summer/All, default Fall) · **Resolved** row (All/Unresolved/
-Resolved/Has notes) · filter dropdowns (**Level**, College, Campus, Subject) +
-search · sortable expandable table; each row expands to section detail + Notes
-editor + Modality Resolved toggle. (Level was a button row; it's now a dropdown.)
+One **Resolved** button row (All/Unresolved/Resolved/Has notes) · a row of
+**dropdown filters**: Term (default Fall 2026; "All terms" option), Level
+(Grad/Undergrad), Modality (Instructional Method), College, Campus, Subject,
+plus Search · sortable expandable table; each row expands to section detail +
+Notes editor + Modality Resolved toggle. (Term, Level, and Modality were all
+originally toggle/tile rows — the user moved them to dropdowns; only Resolved
+remains as buttons. There is no longer a modality "pipeline" tile bar.)
 
 **Header tools (ported from the program tracker):**
 - **★ Views** — full saved-Views system: a filter-tree builder modal (recursive
