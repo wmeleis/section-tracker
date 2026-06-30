@@ -9,7 +9,7 @@ const STATIC = !!window._staticMode;
 let allSections = [];
 let lastFetch = '', refreshDate = '';
 let bakedPerTerm = null;     // per-term counts from the static payload (Console)
-const filters = { term:'Fall 2026', college:'', campus:'', subject:'', modality:'', resolved:'', level:'', search:'' };
+const filters = { term:'Fall 2026', college:'', campus:'', subject:'', modality:'', resolved:'', level:'', special:'', search:'' };
 let sort = { key:'course_code', dir:1 };
 const expanded = new Set();
 const TERM_ORDER = ['Fall 2026','Spring 2026','Summer 2026'];
@@ -159,6 +159,10 @@ function baseFiltered(skip){
     if(skip!=='subject' && filters.subject && s.subject!==filters.subject) return false;
     if(skip!=='modality' && filters.modality && s.instructional_method!==filters.modality) return false;
     if(skip!=='level' && filters.level && s.level!==filters.level) return false;
+    if(skip!=='special' && filters.special){
+      if(filters.special==='Y' && s.special_topics!=='Yes') return false;
+      if(filters.special==='N' && s.special_topics==='Yes') return false;
+    }
     if(skip!=='resolved' && filters.resolved){
       if(filters.resolved==='yes' && !s.modality_resolved) return false;
       if(filters.resolved==='no' && s.modality_resolved) return false;
@@ -489,7 +493,7 @@ async function persistTeamViews(){
 function _snapshotFilters(){ return Object.assign({}, filters); }
 function _applyFilters(f){
   f=f||{};
-  ['term','college','campus','subject','modality','resolved','level','search'].forEach(k=>{ filters[k]=f[k]||''; });
+  ['term','college','campus','subject','modality','resolved','level','special','search'].forEach(k=>{ filters[k]=f[k]||''; });
   syncFilterControls();
 }
 function _resolveViewCols(state){
@@ -888,6 +892,7 @@ function bindControls(){
   $('#f-term').onchange=e=>{filters.term=e.target.value;renderAll();};
   $('#f-level').onchange=e=>{filters.level=e.target.value;renderAll();};
   $('#f-modality').onchange=e=>{filters.modality=e.target.value;renderAll();};
+  $('#f-special').onchange=e=>{filters.special=e.target.value;renderAll();};
   $('#f-college').onchange=e=>{filters.college=e.target.value;renderAll();};
   $('#f-campus').onchange=e=>{filters.campus=e.target.value;renderAll();};
   $('#f-subject').onchange=e=>{filters.subject=e.target.value;renderAll();};
@@ -898,6 +903,7 @@ function syncFilterControls(){
   if(te) te.value=filters.term;
   if(lv) lv.value=filters.level;
   if(md) md.value=filters.modality;
+  const sp=$('#f-special'); if(sp) sp.value=filters.special;
   if(cs) cs.value=filters.college; if(ca) ca.value=filters.campus;
   if(su) su.value=filters.subject; if(se) se.value=filters.search;
 }
