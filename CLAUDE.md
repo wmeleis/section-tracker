@@ -31,9 +31,16 @@ scopes everything to one term (default Fall 2026; "All terms" shows every term).
 **Special topics + times offered (two derived fields).**
 - `special_topics` (Yes/blank) — detected from the section **title alone** (not the
   Registrar's summary sheet), `fetch_active_classes.is_special_topic`: explicit
-  markers only ("Special Topics"/"Spec Top"/leading "ST:"/"ST-"/"ST "). ~99%
-  recall / ~100% precision vs the summary, and it catches ST courses the summary
-  omits. Computed in `_make_section`.
+  markers — "Special Topic(s)" / "Spec Top" / "Spec Topc", "Special Tpcs" / "Spec
+  Tpc", the "SpTp"/"Sp Tp" initialism, and a leading "ST:"/"ST-"/"ST/"/"ST " code.
+  (The spec(ial) branch has no `\w*` gap, so it won't false-match "Specifications
+  Topology"-type titles.) ~99% recall / ~100% precision vs the summary, and it
+  catches ST courses the summary omits. Computed in `_make_section`, **then a
+  course-number propagation pass** (`fetch_and_parse`): any course number with ≥1
+  ST-titled section is a special-topics *shell*, so every section under it is
+  flagged — catching topic-named sections like CS 7180 "Applied Deep Learning"
+  that have no ST marker. Purely title-derived (shell set comes from our own
+  flags, not the sheet). ~204 ST sections across the three terms.
 - `times_offered` (int, blank when unmatched) — from the **Special Topic Summary**
   Tableau view (`fetch_special_topics.py`; REST `/views/{id}/data` works directly,
   no custom view). Long format → "Total Number of Sections" per Course
