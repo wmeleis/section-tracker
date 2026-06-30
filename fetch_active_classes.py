@@ -61,13 +61,18 @@ def _clean(v):
 
 
 # Special-topics detector — derived from the course TITLE alone (not the
-# Registrar's summary sheet). Explicit markers only: "Special Topics"/"Special
-# Topic", "Spec Top"/"Spec. Topics"/"Specl Topics", or a leading "ST" code
-# ("ST:", "ST-", "ST/", "ST "). Deliberately NOT matching bare "Topics in X"
-# (mostly permanent courses) or titles that merely start with "St" (Statistics,
-# Strategic, Studio…). ~99% recall / ~100% precision vs the summary sheet.
+# Registrar's summary sheet). Explicit markers only, covering the registrar's
+# title abbreviations:
+#   • "Special Topic(s)" / "Spec Top" / "Spec. Topics" / "Spec Topc"
+#   • "Special Tpcs" / "Spec Tpc"  (Topics → Tpcs/Tpc abbreviation)
+#   • "SpTp" / "Sp Tp" / "SpTp:"   (Special Topics initialism)
+#   • a leading "ST" code: "ST:", "ST-", "ST/", "ST "
+# Deliberately NOT matching bare "Topics in X" (mostly permanent courses) or
+# titles that merely start with "St" (Statistics, Strategic, Studio…). The
+# spec(ial) branch has no \w* gap so it can't span into "Specifications
+# Topology"-type false positives.
 _SPECIAL_TOPIC_RE = re.compile(
-    r'special\s+top|spec\w*\.?\s*top|^st\s*[:/\-]|^st\s+\S', re.I)
+    r'spec(?:ial)?\.?\s*(?:top|tpc)|\bsp\.?\s*tp\b|^st\s*[:/\-]|^st\s+\S', re.I)
 
 
 def is_special_topic(title):
@@ -273,6 +278,21 @@ def fetch_and_parse(use_cache=False):
                     refresh = secs[0]['refresh_date']
             except Exception as e:
                 print(f"  {t['label']}: skipped ({e})")
+        # Course-number propagation: a course number with ANY special-topics-
+        # titled section is a special-topics shell (e.g. CS 7180), so every
+        # section under it is a special topic — including ones titled with just
+        # the topic name (e.g. "Applied Deep Learning") that the title test
+        # can't see. Purely title-derived: the shell set comes from our own
+        # flagged titles, not the summary sheet.
+        st_codes = {(s['subject'], s['course_number']) for s in all_sections
+                    if s.get('special_topics') == 'Yes'}
+        prop = 0
+        for s in all_sections:
+            if s.get('special_topics') != 'Yes' and (s['subject'], s['course_number']) in st_codes:
+                s['special_topics'] = 'Yes'
+                prop += 1
+        if prop:
+            print(f"  special-topics propagation: +{prop} sections under {len(st_codes)} ST course numbers")
         # Overlay times-offered for special-topics courses (per-topic join on
         # normalized subject+number+title). Best-effort: never blocks the scan.
         try:
