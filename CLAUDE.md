@@ -83,7 +83,8 @@ only thing baked into the daily snapshot.
 ## UI
 One **Resolved** button row (All/Unresolved/Resolved/Has notes) · a row of
 **dropdown filters**: Term (default Fall 2026; "All terms" option), Level
-(Grad/Undergrad), Modality (Instructional Method), College, Campus, Subject,
+(Grad/Undergrad), Modality (Instructional Method), Special Topics (All / only /
+not — uses the title-derived `special_topics` flag), College, Campus, Subject,
 plus Search · sortable expandable table; each row expands to section detail +
 Notes editor + Modality Resolved toggle. (Term, Level, and Modality were all
 originally toggle/tile rows — the user moved them to dropdowns; only Resolved
