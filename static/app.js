@@ -52,7 +52,7 @@ const SECTION_COLUMNS = [
   { key:'modality_resolved', label:'Resolved' },
   { key:'notes',       label:'Notes' },
   { key:'special_topics', label:'Special Topics', defaultHidden:true },
-  { key:'times_offered',  label:'Times Offered', num:true, defaultHidden:true },
+  { key:'times_offered',  label:'Prior Terms', num:true, defaultHidden:true },
   { key:'term',         label:'Term',          defaultHidden:true },
   { key:'crn',          label:'CRN',           defaultHidden:true },
   { key:'schedule',     label:'Schedule',      defaultHidden:true },
@@ -267,7 +267,7 @@ function renderDetail(s){
     ['College',s.college],['Campus',s.campus],['Level',s.level],['Schedule',s.schedule],
     ['Enrolled',s.total_enrolled],['Honors',s.honors_ind],
     ['Special topics', s.special_topics==='Yes' ? 'Yes' : 'No'],
-    ['Times offered', (s.times_offered==null||s.times_offered==='') ? '—' : s.times_offered]]);
+    ['Prior terms offered', (s.times_offered==null||s.times_offered==='') ? '—' : s.times_offered]]);
   const right=el('div'); right.innerHTML='<h4>Modality &amp; logistics</h4>'+kv([
     ['Instructional Method',s.instructional_method],['Meeting Time',s.meeting_time],
     ['Location',s.location],['Faculty',s.faculty_name],['Faculty Email',s.faculty_email],
@@ -284,8 +284,10 @@ function renderDetail(s){
     if(prev.length){
       po.innerHTML+=kv(prev.map(o=>{
         const term=(o.term||'').replace(/\s+Semester$/,'');
-        const detail=[o.instructor||'', (o.enrolled!=null&&o.enrolled!=='')?o.enrolled+' enrolled':''].filter(Boolean).join(' · ')||'—';
-        return [term, detail];
+        const parts=[o.instructor||''];
+        if(o.sections>1) parts.push(o.sections+' sections');
+        if(o.enrolled!=null&&o.enrolled!=='') parts.push(o.enrolled+' enrolled');
+        return [term, parts.filter(Boolean).join(' · ')||'—'];
       }));
     } else {
       po.innerHTML+='<div class="muted">No previous offerings on record.</div>';
@@ -393,7 +395,7 @@ const SECTION_FILTER_FIELDS = [
   {key:'resolved',    label:'Modality Resolved',type:'boolean',value:s=>s.modality_resolved?'Y':'N'},
   {key:'has_notes',   label:'Has Notes',        type:'boolean',value:s=>(s.notes&&s.notes.trim())?'Y':'N'},
   {key:'special_topics',label:'Special Topics', type:'boolean',value:s=>s.special_topics==='Yes'?'Y':'N'},
-  {key:'times_offered',label:'Times Offered',   type:'number', value:s=>s.times_offered},
+  {key:'times_offered',label:'Prior Terms',      type:'number', value:s=>s.times_offered},
   {key:'updated_by',  label:'Updated By',       type:'text',   value:s=>s.updated_by||''},
 ];
 function _svField(key){ return SECTION_FILTER_FIELDS.find(f=>f.key===key); }

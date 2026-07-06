@@ -48,25 +48,28 @@ catalog-title scan misses. Two title fields in that file map onto the two jobs:
   course-number propagation pass** flags every section under an ST shell (catches
   topic-named sections like CS 7180 "Applied Deep Learning" with no marker). ~479 ST
   sections across the three terms.
-- `times_offered` (int, blank when unrecorded) — **per TOPIC** (one shell hosts many
-  topics), counted as distinct `(term, CRN)` grouped by normalized `Section Title`, run
-  **through the cutoff term (Fall 2026, inclusive)** — future terms (Spring 2027…) and the
-  Tableau "All" rollup are excluded. So a brand-new Fall 2026 topic = 1, and `≥ 3` = 2+
-  prior offerings (what the "Special topics — 2+ prior offerings" team view filters).
-  `historical_st.json` stores this as `offerings` (topic_key `"CODE␟topic"` -> list of
-  `{term, rank, instructor, enrolled}`, most-recent-first) plus `crn_topic`
-  (`"canon-term|crn" -> topic_key`). A section resolves its topic **exact by `(term, CRN)`**
-  via `crn_topic` (its own historical row, immune to ActiveClasses-vs-Historical wording
-  differences), with a normalized-title fallback for the ~1% of CRNs absent from the file;
-  `times_offered = len(offerings[topic_key])`.
-- `previous_offerings` (JSON list, blank when none) — the section's topic's offerings in
-  **earlier** terms only (`rank < the section's term rank`), each `{term, instructor,
-  enrolled}`, most-recent-first. Attached in `fetch_and_parse` (`_topic_key_for`), stored
-  as a section column, and shown as a **"Previous offerings"** list in the row's detail
-  panel (special-topics rows only). export_static ships it as a real array; the frontend
-  tolerates array-or-JSON-string. ~214 sections carry a list.
+- Both times_offered + previous_offerings count by **DISTINCT PREVIOUS TERM** (earlier than
+  the section's own term), so concurrent same-term sections don't inflate them. This is the
+  fix for the ARCH-7430 case: a research-methods course caught by "Topics" in its title, run
+  as 7 parallel Fall-2026 sections with blank section titles — the old section-count showed
+  "7" with an empty previous list; term-counting shows the honest **0 prior terms**.
+  `historical_st.json` stores the raw material as `offerings` (topic_key `"CODE␟topic"` ->
+  list of `{term, rank, instructor, enrolled}`, most-recent-first) + `crn_topic`
+  (`"canon-term|crn" -> topic_key`), both run **through the cutoff term (Fall 2026)** —
+  future terms (Spring 2027…) and the Tableau "All" rollup excluded. `fetch_and_parse`
+  resolves each section's topic **exact by `(term, CRN)`** via `crn_topic` (immune to
+  ActiveClasses-vs-Historical wording differences), normalized-title fallback for CRNs
+  absent from the file, then groups its `offerings` by term keeping only earlier terms:
+- `times_offered` (int, "Prior Terms" in the UI; blank when the topic didn't resolve) =
+  **number of previous terms** the topic ran. `≥ 2` = 2+ prior terms (what the "Special
+  topics — 2+ prior offerings" team view filters — threshold is 2, not 3).
+- `previous_offerings` (JSON list, blank when none) = **one row per previous term**
+  `{term, instructor(s), enrolled (term total), sections}`, most-recent-first. Stored as a
+  section column, shown as a **"Previous offerings"** list in the row's detail panel
+  (special-topics rows only). export_static ships it as a real array; the frontend tolerates
+  array-or-JSON-string.
 - `special_topics` / `times_offered` are `defaultHidden` columns (⊞ Columns) + Views filter
-  fields; Times Offered is a **number** field (at least / at most / equals).
+  fields; Prior Terms is a **number** field (at least / at most / equals).
 - **Refresh:** `fetch_historical.py` re-pulls the Historical Courses view (direct REST data
   export, no custom view) and rebuilds `historical_st.json` **daily** — gated ~20h, keep-
   last-good on any failure — wired into `run_update.py` and the local Update button;

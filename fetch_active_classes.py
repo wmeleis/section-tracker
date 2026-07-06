@@ -337,11 +337,13 @@ def fetch_and_parse(use_cache=False):
         if prop:
             print(f"  special-topics propagation: +{prop} sections under {len(st_codes)} ST course numbers")
         # Times-offered + previous-offerings, from the Historical Courses feed. Per TOPIC
-        # (one shell hosts many topics), through Fall 2026. Join is exact by (term, CRN) —
-        # the section's own historical row, immune to ActiveClasses-vs-Historical wording
-        # differences — with a normalized-title fallback for CRNs absent from the file.
-        # times_offered = the topic's full count (incl. current term); previous_offerings =
-        # only EARLIER terms (term/instructor/enrollment), most-recent-first, for the detail.
+        # (one shell hosts many topics). Join is exact by (term, CRN) — the section's own
+        # historical row, immune to ActiveClasses-vs-Historical wording differences — with a
+        # normalized-title fallback for CRNs absent from the file. Both metrics count by
+        # DISTINCT PREVIOUS TERM (earlier than the section's own term), so concurrent
+        # same-term sections don't inflate them: times_offered = number of previous terms;
+        # previous_offerings = one row per previous term (instructors, total enrolled, #
+        # sections), most-recent-first.
         matched = exact = 0
         for s in all_sections:
             if s.get('special_topics') != 'Yes':
@@ -349,12 +351,25 @@ def fetch_and_parse(use_cache=False):
             tk = _topic_key_for(s)
             if not tk:
                 continue
-            offs = _ST_OFFERINGS.get(tk, [])
-            s['times_offered'] = len(offs)
             sec_rank = _hist.rank_int(s['term'])
-            prev = [o for o in offs if o['rank'] < sec_rank]
+            by_term = {}
+            for o in _ST_OFFERINGS.get(tk, []):
+                if o['rank'] >= sec_rank:
+                    continue   # same-term (concurrent) or later — not a *previous* offering
+                g = by_term.setdefault(o['term'], {'term': o['term'], 'rank': o['rank'],
+                                                   'instr': set(), 'enrolled': 0, 'sections': 0})
+                if o.get('instructor'):
+                    g['instr'].add(o['instructor'])
+                if isinstance(o.get('enrolled'), int):
+                    g['enrolled'] += o['enrolled']
+                g['sections'] += 1
+            prev = sorted(by_term.values(), key=lambda g: g['rank'], reverse=True)
+            s['times_offered'] = len(prev)
             if prev:
-                s['previous_offerings'] = json.dumps(prev, separators=(',', ':'))
+                s['previous_offerings'] = json.dumps(
+                    [{'term': g['term'], 'instructor': '; '.join(sorted(g['instr'])),
+                      'enrolled': g['enrolled'], 'sections': g['sections']} for g in prev],
+                    separators=(',', ':'))
             matched += 1
             if f"{s['term']}|{s['crn']}" in _ST_CRN_TOPIC:
                 exact += 1
