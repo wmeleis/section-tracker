@@ -94,18 +94,31 @@ def _load_historical_st():
     p = os.path.join(HERE, 'data', 'historical_st.json')
     try:
         d = json.load(open(p))
-        return set(d.get('st_codes', [])), d.get('counts', {}), d.get('crn_count', {})
+        return set(d.get('st_codes', [])), d.get('offerings', {}), d.get('crn_topic', {})
     except Exception:
         return set(), {}, {}
 
-_ST_CODES, _ST_COUNTS, _ST_CRN_COUNT = _load_historical_st()
+# _ST_OFFERINGS: topic_key -> [{term, rank, instructor, enrolled}] (most-recent-first,
+# through Fall 2026). _ST_CRN_TOPIC: "term|crn" -> topic_key (exact per-section join).
+_ST_CODES, _ST_OFFERINGS, _ST_CRN_TOPIC = _load_historical_st()
 
 
 def reload_historical_st():
     """Re-read historical_st.json into the module globals — call after
     fetch_historical.maybe_refresh() regenerates it mid-process."""
-    global _ST_CODES, _ST_COUNTS, _ST_CRN_COUNT
-    _ST_CODES, _ST_COUNTS, _ST_CRN_COUNT = _load_historical_st()
+    global _ST_CODES, _ST_OFFERINGS, _ST_CRN_TOPIC
+    _ST_CODES, _ST_OFFERINGS, _ST_CRN_TOPIC = _load_historical_st()
+
+
+def _topic_key_for(sec):
+    """Resolve a section to its historical topic key: exact by (term, CRN), else a
+    normalized-title match within the course code (for CRNs absent from the file)."""
+    tk = _ST_CRN_TOPIC.get(f"{sec['term']}|{sec['crn']}")
+    if tk:
+        return tk
+    topic = _hist.norm_topic(sec['title'])
+    cand = f"{sec['course_code']}␟{topic}" if topic else None
+    return cand if cand in _ST_OFFERINGS else None
 
 
 # ---------------------------------------------------------------------------
@@ -255,7 +268,8 @@ def _make_section(crn, row, term_label):
         'course_description': _clean(row.get('Course Description')),
         'total_enrolled': enrolled,
         'special_topics': 'Yes' if (f'{subject} {number}' in _ST_CODES or is_special_topic(_clean(row.get('Class Title')))) else '',
-        'times_offered': '',   # filled by the per-topic historical join below
+        'times_offered': '',        # filled by the per-topic historical join below
+        'previous_offerings': '',   # JSON list of earlier offerings (term/instructor/enrolled)
         'class_term': _clean(row.get('Class Term')),
         'refresh_date': _clean(row.get('Refresh Date')),
     }
@@ -322,28 +336,31 @@ def fetch_and_parse(use_cache=False):
                 prop += 1
         if prop:
             print(f"  special-topics propagation: +{prop} sections under {len(st_codes)} ST course numbers")
-        # Times-offered: per-topic count from the Historical Courses list, run through
-        # Fall 2026 and per TOPIC (one shell hosts many topics). Primary join is exact
-        # by (term, CRN) — the section's own historical row, so it's immune to
-        # ActiveClasses-vs-Historical title-wording differences; fall back to a
-        # normalized-title match for the ~1% of CRNs not present in the historical file.
-        hits = exact = 0
+        # Times-offered + previous-offerings, from the Historical Courses feed. Per TOPIC
+        # (one shell hosts many topics), through Fall 2026. Join is exact by (term, CRN) —
+        # the section's own historical row, immune to ActiveClasses-vs-Historical wording
+        # differences — with a normalized-title fallback for CRNs absent from the file.
+        # times_offered = the topic's full count (incl. current term); previous_offerings =
+        # only EARLIER terms (term/instructor/enrollment), most-recent-first, for the detail.
+        matched = exact = 0
         for s in all_sections:
             if s.get('special_topics') != 'Yes':
                 continue
-            n = _ST_CRN_COUNT.get(f"{s['term']}|{s['crn']}")
-            if n is not None:
+            tk = _topic_key_for(s)
+            if not tk:
+                continue
+            offs = _ST_OFFERINGS.get(tk, [])
+            s['times_offered'] = len(offs)
+            sec_rank = _hist.rank_int(s['term'])
+            prev = [o for o in offs if o['rank'] < sec_rank]
+            if prev:
+                s['previous_offerings'] = json.dumps(prev, separators=(',', ':'))
+            matched += 1
+            if f"{s['term']}|{s['crn']}" in _ST_CRN_TOPIC:
                 exact += 1
-            else:
-                topic = _hist.norm_topic(s['title'])
-                n = _ST_COUNTS.get(s['course_code'], {}).get(topic) if topic else None
-            if n is not None:
-                s['times_offered'] = n
-                hits += 1
         flagged = sum(1 for s in all_sections if s.get('special_topics') == 'Yes')
-        print(f"  special topics: {flagged} flagged, {hits} with a times-offered count "
-              f"({exact} exact by CRN, {hits - exact} by title) — "
-              f"{len(_ST_CODES)} ST codes / {sum(len(v) for v in _ST_COUNTS.values())} topics on file")
+        print(f"  special topics: {flagged} flagged, {matched} matched to history "
+              f"({exact} exact by CRN) — {len(_ST_CODES)} ST codes / {len(_ST_OFFERINGS)} topics on file")
     finally:
         if token:
             _signout(token)

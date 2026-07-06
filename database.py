@@ -18,7 +18,8 @@ SECTION_COLUMNS = [
     'title', 'college', 'campus', 'instructional_method', 'level', 'schedule',
     'meeting_time', 'location', 'faculty_name', 'faculty_email', 'faculty_type',
     'faculty_category', 'honors_ind', 'attributes', 'course_description',
-    'total_enrolled', 'special_topics', 'times_offered', 'class_term', 'refresh_date',
+    'total_enrolled', 'special_topics', 'times_offered', 'previous_offerings',
+    'class_term', 'refresh_date',
 ]
 
 
@@ -41,6 +42,12 @@ def init_db():
   PRIMARY KEY (id)
 )''')
     c.execute('''CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT)''')
+    # Self-healing migration: add any SECTION_COLUMNS missing from an older table.
+    have = {r[1] for r in c.execute('PRAGMA table_info(sections)').fetchall()}
+    for name in SECTION_COLUMNS:
+        if name not in have:
+            c.execute(f'ALTER TABLE sections ADD COLUMN {name} '
+                      f'{"INTEGER" if name in _int_cols else "TEXT"}')
     c.commit()
     c.close()
 

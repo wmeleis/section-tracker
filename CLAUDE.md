@@ -53,16 +53,25 @@ catalog-title scan misses. Two title fields in that file map onto the two jobs:
   **through the cutoff term (Fall 2026, inclusive)** — future terms (Spring 2027…) and the
   Tableau "All" rollup are excluded. So a brand-new Fall 2026 topic = 1, and `≥ 3` = 2+
   prior offerings (what the "Special topics — 2+ prior offerings" team view filters).
-  Join to a section is **exact by `(term, CRN)`** (`crn_count`, keyed on the tracker's
-  canonical term label via `build_historical_st.canon_term`) — the section's own historical
-  row, immune to ActiveClasses-vs-Historical title-wording differences — with a
-  normalized-title fallback (`counts[code][norm_topic(title)]`) for the ~1% of CRNs absent
-  from the file. ~411/479 matched; the rest are new/blank-title topics (correctly blank).
-- Both are `defaultHidden` columns (⊞ Columns) + Views filter fields. Times Offered uses a
-  **number** field type in the Views engine (at least / at most / equals).
-- **Refresh:** `build_historical_st.py` regenerates `historical_st.json` from the CSV;
-  `fetch_active_classes` loads only that compact JSON at scan time (never the 53 MB CSV).
-  Re-download `historical_courses.csv` and rerun the builder when a new term is added.
+  `historical_st.json` stores this as `offerings` (topic_key `"CODE␟topic"` -> list of
+  `{term, rank, instructor, enrolled}`, most-recent-first) plus `crn_topic`
+  (`"canon-term|crn" -> topic_key`). A section resolves its topic **exact by `(term, CRN)`**
+  via `crn_topic` (its own historical row, immune to ActiveClasses-vs-Historical wording
+  differences), with a normalized-title fallback for the ~1% of CRNs absent from the file;
+  `times_offered = len(offerings[topic_key])`.
+- `previous_offerings` (JSON list, blank when none) — the section's topic's offerings in
+  **earlier** terms only (`rank < the section's term rank`), each `{term, instructor,
+  enrolled}`, most-recent-first. Attached in `fetch_and_parse` (`_topic_key_for`), stored
+  as a section column, and shown as a **"Previous offerings"** list in the row's detail
+  panel (special-topics rows only). export_static ships it as a real array; the frontend
+  tolerates array-or-JSON-string. ~214 sections carry a list.
+- `special_topics` / `times_offered` are `defaultHidden` columns (⊞ Columns) + Views filter
+  fields; Times Offered is a **number** field (at least / at most / equals).
+- **Refresh:** `fetch_historical.py` re-pulls the Historical Courses view (direct REST data
+  export, no custom view) and rebuilds `historical_st.json` **daily** — gated ~20h, keep-
+  last-good on any failure — wired into `run_update.py` and the local Update button;
+  `fetch_active_classes.reload_historical_st()` picks it up in-process. `fetch_active_classes`
+  loads only the compact JSON at scan time (never the 53 MB CSV).
 
 The feed is row-per-(CRN × meeting/faculty); `fetch_active_classes.parse_sections`
 collapses to **one row per CRN**, merging multi-valued faculty/meeting/location,

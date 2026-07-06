@@ -69,9 +69,15 @@ _SEASON_NAME = {0: 'Winter', 1: 'Spring', 2: 'Summer', 3: 'Fall'}
 def canon_term(term):
     """Historical term string ('Fall 2026 Semester', 'Summer Full 2026 Semester',
     'Fall 2026 CPS Quarter') -> the tracker's canonical label ('Fall 2026'), so the
-    per-CRN count key matches the tracker's term labels."""
+    per-CRN join key matches the tracker's term labels."""
     r = _term_rank(term)
     return f'{_SEASON_NAME[r[1]]} {r[0]}' if r else None
+
+
+def rank_int(term):
+    """Chronological sort/compare key: year*10 + season (Winter<Spring<Summer<Fall)."""
+    r = _term_rank(term)
+    return r[0] * 10 + r[1] if r else 0
 
 
 # leading course-type label ("ST" / "Special Topics" / "Topics" / "Selected/Advanced/Short
@@ -105,8 +111,8 @@ def _load_exclusions():
 def build(csv_path=CSV_PATH):
     excl = _load_exclusions()
     is_st = defaultdict(bool)                    # code -> bool
-    seen = defaultdict(set)                      # (code, topic_norm) -> {(term, crn)}
-    topic_label = {}                             # (code, topic_norm) -> a display label
+    seen = defaultdict(set)                      # (code, topic) -> {(term, crn)}
+    meta = {}                                    # (code, topic, term, crn) -> {instr:set, enr:int|None}
     rows = skipped = 0
     with open(csv_path, encoding='utf-8-sig') as f:
         for r in csv.DictReader(f):
@@ -120,28 +126,42 @@ def build(csv_path=CSV_PATH):
                 continue
             ct = (r.get('Course Title') or '').strip()
             st = (r.get('Section Title') or '').strip()
-            row_is_st = bool(_COURSE_ST.search(ct)) or bool(_SECTION_ST.search(st))
-            if row_is_st:
-                is_st[code] = True
-                topic_raw = st or ct
-                key = (code, norm_topic(topic_raw))
-                seen[key].add((term, (r.get('CRN') or '').strip()))
-                topic_label.setdefault(key, topic_raw)
+            if not (_COURSE_ST.search(ct) or _SECTION_ST.search(st)):
+                continue
+            is_st[code] = True
+            topic = norm_topic(st or ct)
+            crn = (r.get('CRN') or '').strip()
+            seen[(code, topic)].add((term, crn))
+            m = meta.setdefault((code, topic, term, crn), {'instr': set(), 'enr': None})
+            fac = f"{(r.get('Faculty First Name') or '').strip()} {(r.get('Faculty Last Name') or '').strip()}".strip()
+            if fac:
+                m['instr'].add(fac)
+            if (r.get('Measure Names') or '').strip().lower() == 'avg. enrolled':
+                try:
+                    m['enr'] = int(round(float(r.get('Measure Values') or 0)))
+                except (ValueError, TypeError):
+                    pass
 
     st_codes = sorted(c for c, v in is_st.items() if v and c not in excl)
     st_set = set(st_codes)
-    counts = defaultdict(dict)
-    crn_count = {}   # "term|crn" -> its topic's total count (primary, exact join key)
+    offerings = {}       # topic_key -> [{term, rank, instructor, enrolled}] most-recent-first
+    crn_topic = {}       # "canon-term|crn" -> topic_key (exact per-section join)
     for (code, topic), crns in seen.items():
-        # Skip the empty-topic bucket: rows with a blank Section Title (~28%) can't
-        # be attributed to a specific topic, so they'd wrongly merge unrelated
-        # offerings. A tracker section always has a real title, so it never needs it.
-        if code in st_set and topic:
-            n = len(crns)
-            counts[code][topic] = n
-            for term, crn in crns:
-                if crn:
-                    crn_count[f'{canon_term(term)}|{crn}'] = n
+        # Skip the empty-topic bucket: rows with a blank Section Title (~28%) can't be
+        # attributed to a specific topic; a tracker section always has a real title.
+        if code not in st_set or not topic:
+            continue
+        tk = f'{code}␟{topic}'
+        lst = []
+        for term, crn in crns:
+            m = meta.get((code, topic, term, crn), {})
+            lst.append({'term': term, 'rank': rank_int(term),
+                        'instructor': '; '.join(sorted(m.get('instr') or [])),
+                        'enrolled': m.get('enr')})
+            if crn:
+                crn_topic[f'{canon_term(term)}|{crn}'] = tk
+        lst.sort(key=lambda o: o['rank'], reverse=True)
+        offerings[tk] = lst
 
     out = {
         'generated': datetime.datetime.now().isoformat(timespec='seconds'),
@@ -151,30 +171,24 @@ def build(csv_path=CSV_PATH):
         'rows_excluded_out_of_window': skipped,
         'st_codes': st_codes,
         'excluded_codes': sorted(excl),
-        'counts': {k: counts[k] for k in sorted(counts)},
-        'crn_count': crn_count,
+        'offerings': offerings,
+        'crn_topic': crn_topic,
     }
     json.dump(out, open(OUT_PATH, 'w'), indent=1)
-    return out, topic_label
+    return out
 
 
 if __name__ == '__main__':
-    out, labels = build()
-    nc = out['counts']
-    total_topics = sum(len(v) for v in nc.values())
+    out = build()
+    offs = out['offerings']
+    total_offerings = sum(len(v) for v in offs.values())
     print(f"in-window rows: {out['rows_in_window']:,}  (excluded out-of-window: {out['rows_excluded_out_of_window']:,})")
-    print(f"ST course codes: {len(out['st_codes'])}   distinct topics: {total_topics:,}")
+    print(f"ST course codes: {len(out['st_codes'])}   distinct topics: {len(offs):,}   offering records: {total_offerings:,}")
     print(f"excluded: {out['excluded_codes']}")
     print(f"-> {OUT_PATH}")
-    # sanity: busiest shells + a couple of well-known topics
-    busiest = sorted(nc.items(), key=lambda kv: -sum(kv[1].values()))[:6]
-    print('\nbusiest ST shells (total offerings, distinct topics):')
-    for code, tops in busiest:
-        print(f"   {code:12s} {sum(tops.values()):>4} offerings across {len(tops):>3} topics")
-    # show INFO 7374 top topics
-    for probe in ('INFO 7374', 'ALY 6983', 'CS 7180'):
-        tops = sorted(nc.get(probe, {}).items(), key=lambda kv: -kv[1])[:5]
-        if tops:
-            print(f'\n{probe} top topics:')
-            for t, n in tops:
-                print(f'   {n:>3}x  {t}')
+    # sanity: one well-known topic's full offering list
+    probe = next((k for k in offs if k.startswith('INFO 7374␟')), None)
+    if probe:
+        print(f'\n{probe.replace("␟", " · ")} ({len(offs[probe])}x):')
+        for o in offs[probe][:6]:
+            print(f"   {o['term']:24s} {o['instructor'][:28]:28s} enr={o['enrolled']}")

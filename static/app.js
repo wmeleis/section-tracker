@@ -274,6 +274,25 @@ function renderDetail(s){
     ['Faculty Type',s.faculty_type],['Attributes',s.attributes]]);
   d.appendChild(left); d.appendChild(right);
 
+  // Previous offerings of this special-topics course's topic (earlier terms only).
+  if(s.special_topics==='Yes'){
+    let prev=s.previous_offerings;
+    if(typeof prev==='string'){ try{ prev=JSON.parse(prev||'[]'); }catch(_){ prev=[]; } }
+    if(!Array.isArray(prev)) prev=[];
+    const po=el('div','full');
+    po.innerHTML='<h4>Previous offerings'+(prev.length?` (${prev.length})`:'')+'</h4>';
+    if(prev.length){
+      po.innerHTML+=kv(prev.map(o=>{
+        const term=(o.term||'').replace(/\s+Semester$/,'');
+        const detail=[o.instructor||'', (o.enrolled!=null&&o.enrolled!=='')?o.enrolled+' enrolled':''].filter(Boolean).join(' · ')||'—';
+        return [term, detail];
+      }));
+    } else {
+      po.innerHTML+='<div class="muted">No previous offerings on record.</div>';
+    }
+    d.appendChild(po);
+  }
+
   const resWrap=el('div','full'); resWrap.innerHTML='<h4>Modality Resolved</h4>';
   const tog=el('button','switch'+(s.modality_resolved?' on':'')); tog.innerHTML='<span class="knob"></span>';
   const tl=el('span',null,s.modality_resolved?'Yes':'No');

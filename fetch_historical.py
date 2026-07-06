@@ -73,11 +73,11 @@ def maybe_refresh(max_age_hours=20, token=None, site_id=None, force=False):
         token, site_id = fac._signin()
     try:
         rows = pull(token, site_id)
-        out = build_historical_st.build()[0]
+        out = build_historical_st.build()
         with open(STAMP_PATH, 'w') as f:
             f.write(datetime.datetime.now().isoformat(timespec='seconds'))
         print(f'  historical refresh: {rows:,} rows -> {len(out["st_codes"])} ST codes, '
-              f'{sum(len(v) for v in out["counts"].values())} topics')
+              f'{len(out["offerings"])} topics')
         return True
     finally:
         if own:

@@ -81,6 +81,15 @@ def export_data(salt, key):
         # trim heavy fields not shown on the shared table (keeps the payload small)
         s.pop('course_description', None)
         s.pop('fetched_at', None)
+        # previous_offerings is stored as a JSON string; ship a real array
+        po = s.get('previous_offerings')
+        if po:
+            try:
+                s['previous_offerings'] = json.loads(po)
+            except (ValueError, TypeError):
+                s['previous_offerings'] = []
+        else:
+            s['previous_offerings'] = []
         t = s.get('term', '') or '(none)'
         per_term[t] = per_term.get(t, 0) + 1
     payload = {
