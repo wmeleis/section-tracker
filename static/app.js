@@ -307,8 +307,10 @@ function renderDetail(s){
   } else { tog.disabled=true; wrap.appendChild(el('span','readonly-note','  (set by the Graduate Dean’s office)')); }
   resWrap.appendChild(wrap); d.appendChild(resWrap);
 
-  const noteWrap=el('div','full'); noteWrap.innerHTML='<h4>College notes</h4>';
-  const ta=el('textarea','note-box'); ta.value=s.notes||''; ta.placeholder='Add a note about this section…';
+  const isLC=['Live Cast','Video Streaming'].includes(s.instructional_method);
+  const noteWrap=el('div','full'); noteWrap.innerHTML='<h4>'+(isLC?'Live Cast justification':'College notes')+'</h4>';
+  const ta=el('textarea','note-box'); ta.value=s.notes||'';
+  ta.placeholder=isLC?'Why is this section offered via Live Cast? (college justification)…':'Add a note about this section…';
   const actions=el('div','note-actions');
   const save=el('button','header-secondary-btn','Save note'); save.style.cssText='border-color:var(--accent);color:var(--accent)';
   const saved=el('span','note-saved'); saved.style.display='none'; saved.textContent='Saved ✓';

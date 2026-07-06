@@ -138,7 +138,15 @@ remains as buttons. There is no longer a modality "pipeline" tile bar.)
     tile for all users (incl. colleges on the static site), like the student page.
     An admin star/unstar on a team view persists `starred` back to the shared file
     (`pvStarById`). Shipped starred team views: **Live Cast courses**
-    (Modality = Live Cast) and **Special topics — 2+ prior offerings**.
+    (Modality = Live Cast), **Live Cast — needs justification** (Live Cast AND
+    `has_notes = No`), and **Special topics — 2+ prior offerings**.
+
+**Live Cast justifications live in the Notes field** (no dedicated column). For a
+Live Cast section the detail panel relabels "College notes" → **"Live Cast
+justification"** with a justification prompt; the **"Live Cast — needs
+justification"** view is the tracking queue (LC sections with an empty note). So a
+college's LC justification is just its section Note, and Notes stays one free-text
+field serving both purposes.
 - **⊞ Columns** — show/hide table columns (`SECTION_COLUMNS`; `defaultHidden`:
   Term/CRN/Schedule/Meeting Time/Location/Faculty Email). Persisted in
   `localStorage['sectrk-cols']`.

@@ -18,6 +18,29 @@
       }
     },
     {
+      "id": "team_livecast_needs_just",
+      "name": "Live Cast — needs justification",
+      "team": true,
+      "starred": true,
+      "state": {
+        "visibleCols": [
+          "course_code", "section", "title", "term", "college", "campus",
+          "instructional_method", "faculty_name", "modality_resolved", "notes"
+        ],
+        "filters": {
+          "term": "", "level": "", "resolved": "", "college": "", "campus": "",
+          "subject": "", "modality": "Live Cast", "search": ""
+        },
+        "tree": {
+          "type": "group",
+          "conj": "all",
+          "children": [
+            { "type": "rule", "field": "has_notes", "op": "in", "value": ["N"] }
+          ]
+        }
+      }
+    },
+    {
       "id": "team_st_2plus_prior",
       "name": "Special topics — 2+ prior offerings",
       "team": true,
