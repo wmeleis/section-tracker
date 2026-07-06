@@ -62,6 +62,14 @@ def do_connect():
     with _lock:
         _connect_state.update(running=True, ok=None, error='')
     try:
+        # Daily historical refresh (gated ~20h) -> rebuild the special-topics
+        # identification + per-topic count lookup. Best-effort; keeps last-good.
+        try:
+            import fetch_historical
+            if fetch_historical.maybe_refresh():
+                fetch.reload_historical_st()
+        except Exception as he:
+            print('historical refresh skipped:', he)
         sections, refresh = fetch.fetch_and_parse(use_cache=False)
         n = db.replace_all_sections(sections)
         # rebuild + publish the shared site (best-effort; never fails the pull)

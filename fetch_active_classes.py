@@ -79,6 +79,35 @@ def is_special_topic(title):
     return bool(_SPECIAL_TOPIC_RE.search((title or '').strip()))
 
 
+# Special-topics identification + per-topic offering counts come from the
+# Registrar's "Historical Courses" section list, distilled by build_historical_st.py
+# into data/historical_st.json:
+#   • st_codes  — course codes ("SUBJECT NUMBER") whose catalog shell title is a
+#     topics course (minus curated exclusions like SOCL 7003).
+#   • counts    — {code: {normalized-topic: times-offered-through-Fall-2026}}.
+# A section is special topics if its code is in st_codes OR its title carries an
+# explicit ST marker (covers generic-titled shells run as ST); times_offered is
+# the count for its normalized topic. Regenerate the JSON with build_historical_st.
+import build_historical_st as _hist   # norm_topic() lives here (stdlib-only)
+
+def _load_historical_st():
+    p = os.path.join(HERE, 'data', 'historical_st.json')
+    try:
+        d = json.load(open(p))
+        return set(d.get('st_codes', [])), d.get('counts', {}), d.get('crn_count', {})
+    except Exception:
+        return set(), {}, {}
+
+_ST_CODES, _ST_COUNTS, _ST_CRN_COUNT = _load_historical_st()
+
+
+def reload_historical_st():
+    """Re-read historical_st.json into the module globals — call after
+    fetch_historical.maybe_refresh() regenerates it mid-process."""
+    global _ST_CODES, _ST_COUNTS, _ST_CRN_COUNT
+    _ST_CODES, _ST_COUNTS, _ST_CRN_COUNT = _load_historical_st()
+
+
 # ---------------------------------------------------------------------------
 # Tableau REST
 # ---------------------------------------------------------------------------
@@ -225,8 +254,8 @@ def _make_section(crn, row, term_label):
         'attributes': _clean(row.get('Attributes')),
         'course_description': _clean(row.get('Course Description')),
         'total_enrolled': enrolled,
-        'special_topics': 'Yes' if is_special_topic(_clean(row.get('Class Title'))) else '',
-        'times_offered': '',   # filled by the special-topics overlay (per-topic join)
+        'special_topics': 'Yes' if (f'{subject} {number}' in _ST_CODES or is_special_topic(_clean(row.get('Class Title')))) else '',
+        'times_offered': '',   # filled by the per-topic historical join below
         'class_term': _clean(row.get('Class Term')),
         'refresh_date': _clean(row.get('Refresh Date')),
     }
@@ -293,23 +322,28 @@ def fetch_and_parse(use_cache=False):
                 prop += 1
         if prop:
             print(f"  special-topics propagation: +{prop} sections under {len(st_codes)} ST course numbers")
-        # Overlay times-offered for special-topics courses (per-topic join on
-        # normalized subject+number+title). Best-effort: never blocks the scan.
-        try:
-            import fetch_special_topics as fst
-            tmap = fst.fetch_times_offered(token=token, site_id=site_id, use_cache=use_cache)
-            hits = 0
-            for s in all_sections:
-                if s.get('special_topics') != 'Yes':
-                    continue
-                n = tmap.get(fst.section_key(s['subject'], s['course_number'], s['title']))
-                if n is not None:
-                    s['times_offered'] = n
-                    hits += 1
-            print(f"  special topics: {sum(1 for s in all_sections if s.get('special_topics')=='Yes')} flagged, "
-                  f"{hits} matched to times-offered ({len(tmap)} in summary)")
-        except Exception as e:
-            print(f"  special-topics overlay skipped ({e})")
+        # Times-offered: per-topic count from the Historical Courses list, run through
+        # Fall 2026 and per TOPIC (one shell hosts many topics). Primary join is exact
+        # by (term, CRN) — the section's own historical row, so it's immune to
+        # ActiveClasses-vs-Historical title-wording differences; fall back to a
+        # normalized-title match for the ~1% of CRNs not present in the historical file.
+        hits = exact = 0
+        for s in all_sections:
+            if s.get('special_topics') != 'Yes':
+                continue
+            n = _ST_CRN_COUNT.get(f"{s['term']}|{s['crn']}")
+            if n is not None:
+                exact += 1
+            else:
+                topic = _hist.norm_topic(s['title'])
+                n = _ST_COUNTS.get(s['course_code'], {}).get(topic) if topic else None
+            if n is not None:
+                s['times_offered'] = n
+                hits += 1
+        flagged = sum(1 for s in all_sections if s.get('special_topics') == 'Yes')
+        print(f"  special topics: {flagged} flagged, {hits} with a times-offered count "
+              f"({exact} exact by CRN, {hits - exact} by title) — "
+              f"{len(_ST_CODES)} ST codes / {sum(len(v) for v in _ST_COUNTS.values())} topics on file")
     finally:
         if token:
             _signout(token)

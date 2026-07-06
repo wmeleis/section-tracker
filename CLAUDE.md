@@ -28,28 +28,41 @@ site** (the PAT JSON's `site` key points elsewhere — don't use it). PAT in
 the DB primary key are `"{term}|{crn}"`. The dashboard's **Term** dropdown filter
 scopes everything to one term (default Fall 2026; "All terms" shows every term).
 
-**Special topics + times offered (two derived fields).**
-- `special_topics` (Yes/blank) — detected from the section **title alone** (not the
-  Registrar's summary sheet), `fetch_active_classes.is_special_topic`: explicit
-  markers — "Special Topic(s)" / "Spec Top" / "Spec Topc", "Special Tpcs" / "Spec
-  Tpc", the "SpTp"/"Sp Tp" initialism, and a leading "ST:"/"ST-"/"ST/"/"ST " code.
-  (The spec(ial) branch has no `\w*` gap, so it won't false-match "Specifications
-  Topology"-type titles.) ~99% recall / ~100% precision vs the summary, and it
-  catches ST courses the summary omits. Computed in `_make_section`, **then a
-  course-number propagation pass** (`fetch_and_parse`): any course number with ≥1
-  ST-titled section is a special-topics *shell*, so every section under it is
-  flagged — catching topic-named sections like CS 7180 "Applied Deep Learning"
-  that have no ST marker. Purely title-derived (shell set comes from our own
-  flags, not the sheet). ~204 ST sections across the three terms.
-- `times_offered` (int, blank when unmatched) — from the **Special Topic Summary**
-  Tableau view (`fetch_special_topics.py`; REST `/views/{id}/data` works directly,
-  no custom view). Long format → "Total Number of Sections" per Course
-  ("<Subject> <Number> <Title>"), keyed PER TOPIC. Overlaid in `fetch_and_parse`
-  onto special-topics sections via a normalized subject+number+title join
-  (~143/148 match; the rest the summary omits). Term-agnostic (cumulative count).
-- Both are `defaultHidden` columns (⊞ Columns) + Views filter fields. Times
-  Offered uses a **number** field type in the Views engine (at least / at most /
-  equals), so you can filter e.g. recurring topics offered ≥ N times.
+**Special topics + times offered (two derived fields — single source: Historical Courses).**
+Both come from the Registrar's **"Historical Courses"** section list (all terms with
+faculty, `data/historical_courses.csv`), distilled by **`build_historical_st.py`** into
+`data/historical_st.json`. This replaced the earlier catalog web-scrape, the Course-
+Inventory title scan, and the Registrar's "Special Topic Summary" dashboard (all three
+retired) — the historical list identifies ST *and* counts offerings from one place, and
+its section titles catch generic-titled shells (e.g. ECON 4650 run as "ST: …") that a
+catalog-title scan misses. Two title fields in that file map onto the two jobs:
+- **Which courses are special topics** — the catalog *shell* name (`Course Title`, e.g.
+  "Spec Topics in Political Sci", "Topics in Studio Art") identifies the course; a code is
+  ST if any of its rows (through the cutoff term) has a topics-matching `Course Title` OR a
+  `Section Title` with an explicit "ST:" marker. `data/special_topics_exclusions.json`
+  removes course-type false positives whose title merely trips the topics regex —
+  currently only **SOCL 7003** (doctoral proseminar); **HONR 3300–3303** ("Topics in
+  Research and Inquiry") are explicitly kept. → `historical_st.json.st_codes` (~327 codes).
+- `special_topics` (Yes/blank) — set in `_make_section`: code ∈ `st_codes` OR the section
+  title trips `is_special_topic` (covers codes the historical file lacks); **then a
+  course-number propagation pass** flags every section under an ST shell (catches
+  topic-named sections like CS 7180 "Applied Deep Learning" with no marker). ~479 ST
+  sections across the three terms.
+- `times_offered` (int, blank when unrecorded) — **per TOPIC** (one shell hosts many
+  topics), counted as distinct `(term, CRN)` grouped by normalized `Section Title`, run
+  **through the cutoff term (Fall 2026, inclusive)** — future terms (Spring 2027…) and the
+  Tableau "All" rollup are excluded. So a brand-new Fall 2026 topic = 1, and `≥ 3` = 2+
+  prior offerings (what the "Special topics — 2+ prior offerings" team view filters).
+  Join to a section is **exact by `(term, CRN)`** (`crn_count`, keyed on the tracker's
+  canonical term label via `build_historical_st.canon_term`) — the section's own historical
+  row, immune to ActiveClasses-vs-Historical title-wording differences — with a
+  normalized-title fallback (`counts[code][norm_topic(title)]`) for the ~1% of CRNs absent
+  from the file. ~411/479 matched; the rest are new/blank-title topics (correctly blank).
+- Both are `defaultHidden` columns (⊞ Columns) + Views filter fields. Times Offered uses a
+  **number** field type in the Views engine (at least / at most / equals).
+- **Refresh:** `build_historical_st.py` regenerates `historical_st.json` from the CSV;
+  `fetch_active_classes` loads only that compact JSON at scan time (never the 53 MB CSV).
+  Re-download `historical_courses.csv` and rerun the builder when a new term is added.
 
 The feed is row-per-(CRN × meeting/faculty); `fetch_active_classes.parse_sections`
 collapses to **one row per CRN**, merging multi-valued faculty/meeting/location,

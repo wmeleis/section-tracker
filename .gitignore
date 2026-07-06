@@ -15,3 +15,4 @@ docs/
 
 # logs
 data/*.log
+data/last_historical_fetch

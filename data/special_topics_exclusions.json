@@ -1,0 +1,13 @@
+{
+ "excluded": [
+  "SOCL 7003"
+ ],
+ "reason": "doctoral proseminar (dissertation topics / reading lists) — trips the topics regex but is not a variable-content special-topics course",
+ "kept_despite_flag": [
+  "HONR 3300",
+  "HONR 3301",
+  "HONR 3302",
+  "HONR 3303"
+ ],
+ "kept_note": "HONR 'Topics in Research and Inquiry' core sequence — confirmed special topics (rotating content); include per user 2026-07-06"
+}
