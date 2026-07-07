@@ -80,6 +80,17 @@ The feed is row-per-(CRN × meeting/faculty); `fetch_active_classes.parse_sectio
 collapses to **one row per CRN**, merging multi-valued faculty/meeting/location,
 and drops administrative placeholders (empty Subject / "Administrative Non-CEU").
 
+**Keep-last-good on empty pulls (`database.replace_all_sections`, `protect_empty_terms=True`).**
+The store is a full DELETE+INSERT, but if a term that currently HAS rows comes back with
+**zero** rows in a pull (intermittent-empty Tableau response, or an aged-out source), its
+existing rows are **preserved instead of wiped** — this protects the active term (Fall)
+from a single bad pull. A term that already had no rows stays empty (a genuinely dropped
+term like **Spring 2026**, which aged out of Active Classes as a past term, is not
+resurrected). Added 2026-07-07 after a 6:30 scan pulled Spring 2026 = 0 and the old
+unconditional wipe deleted that term (irrecoverable — `docs/` gitignored, gh-pages squashed;
+only a Time Machine copy survived). Partial drops (a term returning far fewer rows, not zero)
+are **not** guarded yet.
+
 ## Editable overlay — Airtable (`notes_store.py`)
 Base `appPpmcDzhL2BllHu`, table `tblUbDvuKPudNy6d8`. Token in **Keychain**
 (`security … -s airtable-sections -a token`). Fields: `CRN`, `Term`, `Course`,

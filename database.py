@@ -52,25 +52,47 @@ def init_db():
     c.close()
 
 
-def replace_all_sections(sections):
-    """DELETE + INSERT the whole section set in one transaction."""
+def replace_all_sections(sections, protect_empty_terms=True):
+    """Replace the section set in one transaction.
+
+    Keep-last-good: if a term that currently HAS rows comes back with ZERO rows in
+    this pull (intermittent-empty Tableau response, or an aged-out source), its
+    existing rows are preserved rather than wiped — this protects the active term
+    (Fall) from a single bad pull. A term that already had no rows stays empty (so
+    a genuinely dropped term like Spring 2026 doesn't get resurrected)."""
     init_db()
     now = datetime.datetime.now().isoformat(timespec='seconds')
     c = _conn()
     try:
+        preserved = []
+        if protect_empty_terms:
+            fresh_terms = {s.get('term') for s in sections if s.get('term')}
+            existing = [r['term'] for r in c.execute(
+                "SELECT term FROM sections WHERE term IS NOT NULL AND term!='' "
+                "GROUP BY term HAVING COUNT(*) > 0")]
+            gone = sorted(t for t in existing if t not in fresh_terms)
+            if gone:
+                q = ','.join('?' for _ in gone)
+                preserved = [dict(r) for r in
+                             c.execute(f'SELECT * FROM sections WHERE term IN ({q})', gone)]
+                print(f"[keep-last-good] {gone} returned 0 rows this pull — "
+                      f"preserving {len(preserved)} existing rows (not wiping)")
         c.execute('DELETE FROM sections')
-        placeholders = ','.join(['?'] * (len(SECTION_COLUMNS) + 1))
-        cols = ','.join(SECTION_COLUMNS + ['fetched_at'])
+        cols = SECTION_COLUMNS + ['fetched_at']
+        placeholders = ','.join(['?'] * len(cols))
         rows = [tuple(s.get(k, '') for k in SECTION_COLUMNS) + (now,) for s in sections]
-        c.executemany(f'INSERT INTO sections ({cols}) VALUES ({placeholders})', rows)
+        rows += [tuple(p.get(k, '') for k in SECTION_COLUMNS) + (p.get('fetched_at') or now,)
+                 for p in preserved]
+        c.executemany(f"INSERT INTO sections ({','.join(cols)}) VALUES ({placeholders})", rows)
+        total = len(sections) + len(preserved)
         set_meta('last_fetch', now, c)
-        set_meta('section_count', str(len(sections)), c)
+        set_meta('section_count', str(total), c)
         if sections:
             set_meta('refresh_date', sections[0].get('refresh_date', ''), c)
         c.commit()
     finally:
         c.close()
-    return len(sections)
+    return total
 
 
 def get_all_sections():
