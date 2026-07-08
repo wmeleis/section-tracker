@@ -91,6 +91,17 @@ unconditional wipe deleted that term (irrecoverable — `docs/` gitignored, gh-p
 only a Time Machine copy survived). Partial drops (a term returning far fewer rows, not zero)
 are **not** guarded yet.
 
+**Source-data staleness banner** (like the CIM program tracker). `database.source_health()`
+reports the last-successful-read timestamp for each batch input — **Section roster (Active
+Classes)** = `last_fetch` meta, **Historical Courses** = `data/last_historical_fetch` — with
+`STALE_SOURCE_DAYS = 3`. It's baked into the payload (`/api/sections` + `data.json` via
+export_static; also `GET /api/source_health`), so the amber, dismissible banner
+(`renderSourceHealthBanner`, `#source-banner`, `static/app.js`) works on **both** the local
+app and the shared static site — if the daily scan stalls, the baked timestamp freezes and
+the client sees it as stale. Airtable notes are live-read, so they're **not** a source.
+Dismissal is keyed by the stale-signature (`localStorage['sectrk-srcbanner-dismissed']`), so
+a new/worse staleness re-appears after being dismissed.
+
 ## Editable overlay — Airtable (`notes_store.py`)
 Base `appPpmcDzhL2BllHu`, table `tblUbDvuKPudNy6d8`. Token in **Keychain**
 (`security … -s airtable-sections -a token`). Fields: `CRN`, `Term`, `Course`,

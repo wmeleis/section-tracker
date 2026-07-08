@@ -123,3 +123,42 @@ def get_meta(key, default=''):
         return r['value'] if r else default
     finally:
         c.close()
+
+
+# Batch inputs whose staleness the dashboard banner watches. Airtable notes are
+# read LIVE (no batch step), so they're not a staleness source.
+STALE_SOURCE_DAYS = 3
+
+
+def _iso_local(s):
+    """Attach the local TZ offset to a naive local ISO timestamp so a browser in
+    any timezone parses the correct absolute instant."""
+    if not s:
+        return None
+    try:
+        return datetime.datetime.fromisoformat(s).astimezone().isoformat()
+    except (ValueError, TypeError):
+        return s
+
+
+def source_health():
+    """Last-successful-read timestamp per batch input, for the staleness banner.
+    Baked into the payload (works on both the local app and the shared static site);
+    the client compares each to 'now' and warns past STALE_SOURCE_DAYS."""
+    hist = None
+    hp = os.path.join(HERE, 'data', 'last_historical_fetch')
+    try:
+        with open(hp) as f:
+            hist = _iso_local(f.read().strip())
+    except OSError:
+        try:
+            hist = _iso_local(datetime.datetime.fromtimestamp(os.path.getmtime(hp)).isoformat())
+        except OSError:
+            hist = None
+    return {
+        'stale_days': STALE_SOURCE_DAYS,
+        'sources': [
+            {'name': 'Section roster (Active Classes)', 'last_success': _iso_local(get_meta('last_fetch'))},
+            {'name': 'Historical Courses (special topics)', 'last_success': hist},
+        ],
+    }

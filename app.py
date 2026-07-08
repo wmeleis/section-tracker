@@ -100,7 +100,13 @@ def api_sections():
         'refresh_date': db.get_meta('refresh_date'),
         'is_admin': True,
         'airtable': notes_store.airtable_available(),
+        'source_health': db.source_health(),
     })
+
+
+@app.route('/api/source_health')
+def api_source_health():
+    return jsonify(db.source_health())
 
 
 @app.route('/api/status')

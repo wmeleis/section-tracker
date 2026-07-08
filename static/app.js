@@ -101,6 +101,7 @@ async function load() {
   $('#subtitle').textContent = allSections.length.toLocaleString() + ' sections · ' + terms.length + ' terms · registrar refresh ' + (refreshDate || '—');
   $('#last-updated').textContent = lastFetch ? ('pulled ' + fmtTime(lastFetch)) : '';
   setStoreBadge(data.airtable);
+  renderSourceHealthBanner(data.source_health);
   // hydrate team views (static: baked; local: API)
   await hydrateTeamViews(data);
   initStarredIfNeeded();   // seed tiles from shipped starred:true views
@@ -119,6 +120,35 @@ function setStoreBadge(airtable){
   b.className='badge-dot '+(airtable?'ok':'bad');
   l.textContent = airtable ? 'Airtable notes' : 'local notes';
 }
+// Source-data staleness banner — amber, dismissible, top of every view. Warns when
+// a batch input's last successful read is older than stale_days (default 3). Driven
+// by the baked/served `source_health` payload, so it works on both the local app and
+// the shared static site (if the daily scan stalls, the baked timestamp freezes and
+// the client sees it as stale). Airtable notes are live-read, so not a source here.
+function renderSourceHealthBanner(sh){
+  const box=$('#source-banner'); if(!box) return;
+  box.innerHTML='';
+  if(!sh || !Array.isArray(sh.sources)) return;
+  const days=sh.stale_days||3, now=Date.now(), stale=[];
+  sh.sources.forEach(s=>{
+    if(!s.last_success){ stale.push({name:s.name, age:null}); return; }
+    const t=Date.parse(s.last_success); if(isNaN(t)) return;
+    const age=Math.floor((now-t)/86400000);
+    if(age>=days) stale.push({name:s.name, age});
+  });
+  if(!stale.length) return;
+  // dismissal keyed by the stale signature, so a new/worse staleness re-appears
+  const sig=stale.map(s=>s.name+':'+(s.age==null?'never':s.age)).join('|');
+  try{ if(localStorage.getItem('sectrk-srcbanner-dismissed')===sig) return; }catch(_){}
+  const parts=stale.map(s=> s.age==null ? `${esc(s.name)} — never loaded`
+    : `${esc(s.name)} — last updated ${s.age} day${s.age===1?'':'s'} ago`);
+  const div=el('div','source-banner-inner');
+  div.innerHTML=`<span class="sb-icon">⚠</span><span class="sb-text"><strong>Source data may be stale.</strong> ${parts.join(' · ')} (alerts after ${days} days).</span>`;
+  const x=el('button','sb-dismiss','✕'); x.title='Dismiss';
+  x.onclick=()=>{ try{ localStorage.setItem('sectrk-srcbanner-dismissed', sig); }catch(_){}; box.innerHTML=''; };
+  div.appendChild(x); box.appendChild(div);
+}
+
 // On the static site there's no local server — hide Console + Update controls.
 function hideStaticOnlyHeader(){
   if(!STATIC) return;

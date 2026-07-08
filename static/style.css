@@ -233,3 +233,10 @@ tr.detail-row td{background:#fafbfc;padding:0;border-left:4px solid var(--accent
 .pv-name-input{flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font:inherit;font-size:13px}
 .pv-name-input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px rgba(59,130,246,.15)}
 .pv-admin-pill{display:inline-block;background:#7c3aed;color:#fff;font-size:9px;font-weight:700;letter-spacing:.04em;padding:2px 6px;border-radius:8px;vertical-align:middle;margin-left:4px}
+
+/* Source-data staleness banner (amber, dismissible) */
+.source-banner-inner{display:flex;align-items:center;gap:10px;margin:0 0 14px;padding:10px 14px;background:#fef3c7;border:1px solid #f59e0b;border-left:4px solid #f59e0b;border-radius:6px;color:#92400e;font-size:13px}
+.source-banner-inner .sb-icon{font-size:15px;flex:none}
+.source-banner-inner .sb-text{flex:1}
+.source-banner-inner .sb-dismiss{flex:none;background:none;border:none;color:#92400e;cursor:pointer;font-size:14px;padding:2px 7px;border-radius:4px;line-height:1}
+.source-banner-inner .sb-dismiss:hover{background:rgba(146,64,14,.14)}

@@ -99,6 +99,7 @@ def export_data(salt, key):
         'is_admin': False,
         'per_term': per_term,
         'team_views': _load_team_views(),
+        'source_health': db.source_health(),
         'airtable': {
             'base': notes_store.AIRTABLE_BASE,
             'table': notes_store.AIRTABLE_TABLE,
