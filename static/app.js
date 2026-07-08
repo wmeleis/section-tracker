@@ -114,6 +114,7 @@ async function load() {
   await hydrateTeamViews(data);
   initStarredIfNeeded();   // seed tiles from shipped starred:true views
   hideStaticOnlyHeader();
+  applyFiltersState();     // filters start collapsed on every load
   populateFilters();
   // restore the last active view (if it still exists)
   let restore = null;
@@ -156,6 +157,17 @@ function renderSourceHealthBanner(sh){
   x.onclick=()=>{ try{ localStorage.setItem('sectrk-srcbanner-dismissed', sig); }catch(_){}; box.innerHTML=''; };
   div.appendChild(x); box.appendChild(div);
 }
+
+// Collapsible top filter panel — session-only, ALWAYS collapsed on page load
+// (not remembered across reloads), so the page always opens with filters hidden.
+// Copied from the student tracker's ▸ Filters toggle.
+let _filtersOpen = false;
+function applyFiltersState(){
+  document.body.classList.toggle('filters-collapsed', !_filtersOpen);
+  const btn = document.getElementById('filter-toggle-btn');
+  if (btn) btn.textContent = _filtersOpen ? '▾ Filters' : '▸ Filters';
+}
+function toggleFilters(){ _filtersOpen = !_filtersOpen; applyFiltersState(); }
 
 // On the static site there's no local server — hide Console + Update controls.
 function hideStaticOnlyHeader(){

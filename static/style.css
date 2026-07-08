@@ -41,7 +41,12 @@ main{padding:16px 24px 60px}
 .pipeline-step.empty .step-count{color:var(--pending)}
 
 /* Control rows */
-.controls-section{display:flex;flex-direction:column;gap:12px;margin:10px 0 16px;padding:12px 14px;background:#d8e6f6;border:1px solid #bcd0e6;border-radius:6px}
+.controls-section{display:flex;flex-direction:column;gap:12px;margin:8px 0 16px;padding:12px 14px;background:#d8e6f6;border:1px solid #bcd0e6;border-radius:6px}
+/* Collapsible filter panel — defaults closed (always collapsed on page load) */
+#filter-toggle-row{margin:10px 0 0}
+#filter-toggle-btn{background:none;border:none;cursor:pointer;font:inherit;font-size:13px;font-weight:600;color:var(--text-secondary);padding:6px 8px;border-radius:6px}
+#filter-toggle-btn:hover{background:#eef2f7;color:var(--text)}
+body.filters-collapsed #controls-section{display:none}
 .button-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .button-row .row-label{font-size:12px;font-weight:600;color:var(--text-secondary);min-width:64px}
 .type-btn,.smart-view-btn,.proposal-btn{padding:7px 16px;border:2px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);cursor:pointer;font-size:13px;font-weight:600;transition:all .2s}

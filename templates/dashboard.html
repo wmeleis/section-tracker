@@ -6,7 +6,7 @@
 <title>Fall 2026 Section Tracker</title>
 <link rel="stylesheet" href="/static/style.css">
 </head>
-<body>
+<body class="filters-collapsed">
 <div id="app-root">
   <header>
     <div class="header-left">
@@ -63,7 +63,15 @@
 
   <main>
     <div id="source-banner"></div>
-    <div class="controls-section">
+
+    <!-- Starred-view tiles (quick-apply) — shown above the filters -->
+    <div id="view-tiles" class="portfolio-view-tiles" style="display:none"></div>
+
+    <!-- Collapsible filter panel. Defaults closed; always collapsed on page load. -->
+    <div id="filter-toggle-row">
+      <button id="filter-toggle-btn" onclick="toggleFilters()">▸ Filters</button>
+    </div>
+    <div class="controls-section" id="controls-section">
       <div class="button-row" id="resolved-row">
         <span class="row-label">Resolved</span>
         <button class="proposal-btn active-all" data-v="" onclick="setResolved('')">All</button>
@@ -83,9 +91,6 @@
         <button class="header-secondary-btn" onclick="clearFilters()">Clear</button>
       </div>
     </div>
-
-    <!-- Starred-view tiles (quick-apply) -->
-    <div id="view-tiles" class="portfolio-view-tiles" style="display:none"></div>
 
     <div class="summary" id="summary"></div>
 

@@ -142,6 +142,16 @@ only thing baked into the daily snapshot.
 | `static/app.js`, `static/style.css`, `templates/dashboard.html` | Frontend |
 
 ## UI
+**Layout (copied from the program/student trackers):** content is full-width flush-left
+(no `max-width`/`margin:auto` centering; ~24px inset). Order under the header: starred
+**Views** tiles on top, then a **▸ Filters** toggle, then the filter panel. The Resolved
+row + dropdown filters live in `#controls-section` (a soft-blue band, `#d8e6f6`/`#bcd0e6`,
+matching the VIEWS tiles). The panel is **collapsible and always collapsed on page load**
+(`body.filters-collapsed #controls-section{display:none}`; session-only, not remembered —
+copied from the student tracker's `toggleTopFilters`): `toggleFilters()` flips `_filtersOpen`
+and `applyFiltersState()` sets the `▸`/`▾ Filters` label; `<body class="filters-collapsed">`
++ `applyFiltersState()` in `load()` avoid a flash.
+
 One **Resolved** button row (All/Unresolved/Resolved/Has notes) · a row of
 **dropdown filters**: Term (default Fall 2026; "All terms" option), Level
 (Grad/Undergrad), Modality (Instructional Method), Special Topics (All / only /
