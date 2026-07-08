@@ -92,14 +92,16 @@ def export_data(salt, key):
             s['previous_offerings'] = []
         t = s.get('term', '') or '(none)'
         per_term[t] = per_term.get(t, 0) + 1
+    built_at = datetime.datetime.now().astimezone().isoformat()
+    db.set_meta('last_build', built_at)   # so the local app can show it too
     payload = {
         'sections': sections,
         'last_fetch': db.get_meta('last_fetch'),
         'refresh_date': db.get_meta('refresh_date'),
+        'built_at': built_at,
         'is_admin': False,
         'per_term': per_term,
         'team_views': _load_team_views(),
-        'source_health': db.source_health(),
         'airtable': {
             'base': notes_store.AIRTABLE_BASE,
             'table': notes_store.AIRTABLE_TABLE,

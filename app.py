@@ -100,6 +100,7 @@ def api_sections():
         'refresh_date': db.get_meta('refresh_date'),
         'is_admin': True,
         'airtable': notes_store.airtable_available(),
+        'built_at': db.get_meta('last_build'),
         'source_health': db.source_health(),
     })
 

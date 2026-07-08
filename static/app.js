@@ -99,9 +99,15 @@ async function load() {
   const terms = availableTerms();
   if (filters.term && !terms.includes(filters.term)) filters.term = terms[0] || '';
   $('#subtitle').textContent = allSections.length.toLocaleString() + ' sections · ' + terms.length + ' terms · registrar refresh ' + (refreshDate || '—');
-  $('#last-updated').textContent = lastFetch ? ('pulled ' + fmtTime(lastFetch)) : '';
+  // Always-visible (everyone) — data refresh time + site build time.
+  const parts = [];
+  if (lastFetch) parts.push('Data refreshed ' + fmtTime(lastFetch));
+  if (data.built_at) parts.push('Site built ' + fmtTime(data.built_at));
+  $('#last-updated').textContent = parts.join('  ·  ');
   setStoreBadge(data.airtable);
-  renderSourceHealthBanner(data.source_health);
+  // Staleness banner is a LOCAL-app feature only (owner). On the shared static
+  // site, the always-visible refresh/build times above are the staleness signal.
+  if (!STATIC) renderSourceHealthBanner(data.source_health);
   // hydrate team views (static: baked; local: API)
   await hydrateTeamViews(data);
   initStarredIfNeeded();   // seed tiles from shipped starred:true views
