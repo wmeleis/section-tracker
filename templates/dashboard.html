@@ -22,11 +22,6 @@
       <span class="scan-status" id="scan-status"></span>
       <span class="badge-dot" id="store-badge" title="Notes store"><span class="dot"></span><span id="store-label">notes</span></span>
       <button class="header-secondary-btn" id="views-btn" onclick="openViewsModal()">★ Views</button>
-      <div class="portfolio-col-picker" id="section-col-picker" style="position:relative">
-        <button class="portfolio-col-picker-btn" onclick="toggleSectionColPicker(event)">⊞ Columns ▾</button>
-        <div class="portfolio-col-dropdown" id="section-col-dropdown"></div>
-      </div>
-      <button class="header-secondary-btn" onclick="exportSectionsCsv()" title="Export filtered rows to CSV">⤓ Export</button>
       <button class="header-secondary-btn" id="console-btn" onclick="openConsoleModal()">Console</button>
       <button class="header-secondary-btn" id="connect-btn" onclick="connectNow()">↻ Update data</button>
     </div>
@@ -92,7 +87,16 @@
       </div>
     </div>
 
-    <div class="summary" id="summary"></div>
+    <div class="table-toolbar">
+      <div class="summary" id="summary"></div>
+      <div class="table-actions">
+        <div class="portfolio-col-picker" id="section-col-picker" style="position:relative">
+          <button class="portfolio-col-picker-btn" onclick="toggleSectionColPicker(event)">⊞ Columns ▾</button>
+          <div class="portfolio-col-dropdown" id="section-col-dropdown"></div>
+        </div>
+        <button class="header-secondary-btn" onclick="exportSectionsCsv()" title="Export filtered rows to CSV">⤓ Export</button>
+      </div>
+    </div>
 
     <div class="table-wrap">
       <table>
