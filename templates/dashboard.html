@@ -19,10 +19,9 @@
       </div>
     </div>
     <div class="header-right">
-      <span class="scan-status" id="scan-status"></span>
+      <button class="badge-dot conn-badge" id="tableau-status" onclick="checkTableau()" title="Data source (Tableau) connection — click to re-check"><span class="dot"></span><span id="tableau-status-label">Checking…</span></button>
       <span class="badge-dot" id="store-badge" title="Notes store"><span class="dot"></span><span id="store-label">notes</span></span>
       <button class="header-secondary-btn" id="console-btn" onclick="openConsoleModal()">Console</button>
-      <button class="header-secondary-btn" id="connect-btn" onclick="connectNow()">↻ Update data</button>
     </div>
   </header>
 

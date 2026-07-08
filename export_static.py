@@ -267,10 +267,10 @@ def build():
     body = body.replace('/static/', '')
     # hidden until the gate unlocks (boot() reveals it) — gate is now a sibling
     body = body.replace('<div id="app-root">', '<div id="app-root" style="display:none">', 1)
-    # drop the local-server-only buttons on the static site (Console + Update);
-    # Views (team read-only), Columns, and Export stay.
+    # drop local-server-only header controls on the static site (Console button +
+    # Tableau connection badge). Views (team read-only), Columns, Export stay.
     body = body.replace('<button class="header-secondary-btn" id="console-btn" onclick="openConsoleModal()">Console</button>', '')
-    body = body.replace('<button class="header-secondary-btn" id="connect-btn" onclick="connectNow()">↻ Update data</button>', '')
+    body = body.replace('<button class="badge-dot conn-badge" id="tableau-status" onclick="checkTableau()" title="Data source (Tableau) connection — click to re-check"><span class="dot"></span><span id="tableau-status-label">Checking…</span></button>', '')
     body += '<div class="toast" id="toast"></div>'
     with open(os.path.join(DOCS, 'index.html'), 'w') as f:
         f.write(build_index(body))

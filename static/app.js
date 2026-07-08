@@ -107,6 +107,7 @@ async function load() {
   if (_buildEl) _buildEl.textContent = data.built_at ? ('Build: ' +
     new Date(data.built_at).toLocaleString('en-US', {timeZone:'America/New_York', month:'short', day:'numeric', year:'numeric', hour:'numeric', minute:'2-digit'}) + ' ET') : '';
   setStoreBadge(data.airtable);
+  checkTableau();   // local-only Tableau connection badge (colored dot)
   // Staleness banner is a LOCAL-app feature only (owner). On the shared static
   // site, the always-visible refresh/build times above are the staleness signal.
   if (!STATIC) renderSourceHealthBanner(data.source_health);
@@ -173,7 +174,7 @@ function toggleFilters(){ _filtersOpen = !_filtersOpen; applyFiltersState(); }
 // On the static site there's no local server — hide Console + Update controls.
 function hideStaticOnlyHeader(){
   if(!STATIC) return;
-  ['#console-btn','#connect-btn','#scan-status'].forEach(sel=>{ const e=$(sel); if(e) e.style.display='none'; });
+  ['#console-btn','#tableau-status'].forEach(sel=>{ const e=$(sel); if(e) e.style.display='none'; });
 }
 
 function uniq(key){ return [...new Set(allSections.map(s=>s[key]).filter(Boolean))].sort(); }
@@ -938,25 +939,19 @@ function exportSectionsCsv(){
   URL.revokeObjectURL(url);
 }
 
-// ---------- connection button ----------
-function setScanStatus(html, running){
-  const e=$('#scan-status'); if(!e) return;
-  e.innerHTML=html||''; e.classList.toggle('running', !!running);
-}
-async function connectNow(){
-  const btn=$('#connect-btn'); if(!btn||btn.disabled)return;
-  if(STATIC){ window._staticConnect&&window._staticConnect(); return; }
-  btn.disabled=true; btn.innerHTML='<span class="spin"></span> Updating…';
-  setScanStatus('<span class="spin"></span> Updating…', true);
+// ---------- Tableau connection badge (local only; colored dot like the CIM tracker) ----------
+async function checkTableau(){
+  if(STATIC) return;
+  const b=$('#tableau-status'), l=$('#tableau-status-label'); if(!b) return;
+  b.className='badge-dot conn-badge'; if(l) l.textContent='Checking…'; b.title='Checking Tableau connection…';
   try{
-    await fetch(API+'/api/connect',{method:'POST'});
-    const poll=async()=>{ const st=await (await fetch(API+'/api/status')).json();
-      if(st.running){ setTimeout(poll,2500); return; }
-      btn.disabled=false; btn.innerHTML='↻ Update data';
-      if(st.ok){ setScanStatus('Updated '+(st.count||'?').toLocaleString()+' sections · '+fmtTime(st.finished||new Date().toISOString()), false); toast('Updated — '+(st.count||'?')+' sections'); await load(); }
-      else { setScanStatus('Update failed: '+esc(st.error||''), false); toast('Update failed: '+(st.error||'')); } };
-    setTimeout(poll,2500);
-  }catch(e){ btn.disabled=false; btn.innerHTML='↻ Update data'; setScanStatus('Cannot reach local server', false); toast('Cannot reach local server'); }
+    const st=await (await fetch(API+'/api/tableau/status')).json();
+    b.className='badge-dot conn-badge '+(st.connected?'ok':'bad');
+    if(l) l.textContent = st.connected ? 'Connected' : 'Not connected';
+    b.title=(st.connected?'Tableau connected':'Tableau not connected')+(st.detail?(' — '+st.detail):'');
+  }catch(e){
+    b.className='badge-dot conn-badge bad'; if(l) l.textContent='Not connected'; b.title='Cannot reach local server';
+  }
 }
 
 // ---------- button-row + filter handlers ----------
@@ -988,7 +983,7 @@ function boot(){ bindControls(); load(); }
 if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot); else boot();
 
 // ---------- expose inline-handler globals ----------
-window.connectNow=connectNow;
+window.checkTableau=checkTableau;
 window.openViewsModal=openViewsModal;
 window.closeViewsModal=closeViewsModal;
 window.applyView=applyView;

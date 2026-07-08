@@ -23,6 +23,8 @@ header h1{font-size:20px;font-weight:700;color:var(--text)}
 .badge-dot{font-size:12px;display:inline-flex;align-items:center;gap:5px;color:var(--text-secondary)}
 .badge-dot .dot{width:8px;height:8px;border-radius:50%;background:var(--pending)}
 .badge-dot.ok .dot{background:var(--success)} .badge-dot.bad .dot{background:var(--danger)}
+.conn-badge{background:none;border:none;font:inherit;cursor:pointer;padding:3px 6px;border-radius:5px}
+.conn-badge:hover{background:rgba(0,0,0,.05)}
 .header-secondary-btn{padding:8px 16px;border:2px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);cursor:pointer;font-size:13px;font-weight:600;transition:all .2s}
 .header-secondary-btn:hover{border-color:var(--accent);color:var(--accent)}
 

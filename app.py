@@ -121,6 +121,12 @@ def api_source_health():
     return jsonify(db.source_health())
 
 
+@app.route('/api/tableau/status')
+def api_tableau_status():
+    ok, detail = fetch.check()
+    return jsonify({'connected': ok, 'detail': detail})
+
+
 @app.route('/api/status')
 def api_status():
     return jsonify({

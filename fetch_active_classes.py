@@ -184,6 +184,16 @@ def _signout(token):
         pass
 
 
+def check():
+    """Probe the Tableau PAT connection (sign in, then out). Returns (ok, detail)."""
+    try:
+        token, _ = _signin()
+        _signout(token)
+        return True, 'Tableau reachable (PAT valid)'
+    except Exception as e:
+        return False, f'{type(e).__name__}: {e}'
+
+
 def download_csv(token, site_id, cv_name, out_path):
     """Download one custom view's CSV text, save it, return it."""
     cv_id = _find_custom_view(token, site_id, WORKBOOK, cv_name)
