@@ -96,7 +96,7 @@ def dashboard():
 def api_sections():
     return jsonify({
         'sections': merged_sections(),
-        'last_fetch': db.get_meta('last_fetch'),
+        'last_fetch': db._iso_local(db.get_meta('last_fetch')),
         'refresh_date': db.get_meta('refresh_date'),
         'is_admin': True,
         'airtable': notes_store.airtable_available(),

@@ -96,7 +96,7 @@ def export_data(salt, key):
     db.set_meta('last_build', built_at)   # so the local app can show it too
     payload = {
         'sections': sections,
-        'last_fetch': db.get_meta('last_fetch'),
+        'last_fetch': db._iso_local(db.get_meta('last_fetch')),
         'refresh_date': db.get_meta('refresh_date'),
         'built_at': built_at,
         'is_admin': False,

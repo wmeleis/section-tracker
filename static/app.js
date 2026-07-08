@@ -99,11 +99,14 @@ async function load() {
   const terms = availableTerms();
   if (filters.term && !terms.includes(filters.term)) filters.term = terms[0] || '';
   $('#subtitle').textContent = allSections.length.toLocaleString() + ' sections · ' + terms.length + ' terms · registrar refresh ' + (refreshDate || '—');
-  // Always-visible (everyone) — data refresh time + site build time.
-  const parts = [];
-  if (lastFetch) parts.push('Data refreshed ' + fmtTime(lastFetch));
-  if (data.built_at) parts.push('Site built ' + fmtTime(data.built_at));
-  $('#last-updated').textContent = parts.join('  ·  ');
+  // Always-visible (everyone), same location/format as the program & student trackers:
+  // "Updated: <mon d> at <time> ET" + "Build: <mon d, yyyy, time> ET".
+  $('#last-updated').textContent = lastFetch ? ('Updated: ' +
+    new Date(lastFetch).toLocaleDateString('en-US', {month:'short', day:'numeric', timeZone:'America/New_York'}) + ' at ' +
+    new Date(lastFetch).toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit', timeZone:'America/New_York'}) + ' ET') : '';
+  const _buildEl = $('#app-build');
+  if (_buildEl) _buildEl.textContent = data.built_at ? ('Build: ' +
+    new Date(data.built_at).toLocaleString('en-US', {timeZone:'America/New_York', month:'short', day:'numeric', year:'numeric', hour:'numeric', minute:'2-digit'}) + ' ET') : '';
   setStoreBadge(data.airtable);
   // Staleness banner is a LOCAL-app feature only (owner). On the shared static
   // site, the always-visible refresh/build times above are the staleness signal.

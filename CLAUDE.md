@@ -91,11 +91,14 @@ unconditional wipe deleted that term (irrecoverable — `docs/` gitignored, gh-p
 only a Time Machine copy survived). Partial drops (a term returning far fewer rows, not zero)
 are **not** guarded yet.
 
-**Always-visible refresh + build times.** The header (`#last-updated`) always shows, for
-everyone (local app + shared site): **Data refreshed `<last_fetch>`** (when Tableau was last
-pulled) and **Site built `<built_at>`** (when export_static last ran — set into `built_at`
-in the payload + `last_build` meta). On the shared static site these two are the staleness
-signal: if the scan stalls, the frozen timestamps show it. Both are TZ-stamped (ET display).
+**Always-visible refresh + build times** (same location/format as the program & student
+trackers). The header holds two adjacent `.last-updated` spans, shown for everyone (local +
+shared site): `#last-updated` → **"Updated: `<mon d>` at `<time>` ET"** (from `last_fetch`,
+when Tableau was last pulled) and `#app-build` → **"Build: `<mon d, yyyy, time>` ET"** (from
+`built_at`, when export_static last ran — also stored in the `last_build` meta). Both are
+TZ-stamped before emitting (`db._iso_local`; `built_at` carries its own offset) so any-TZ
+browsers render ET correctly. On the shared static site these two are the staleness signal —
+if the scan stalls, the frozen timestamps show it.
 
 **Source-data staleness banner — LOCAL app only** (like the CIM program tracker; owner-facing).
 `database.source_health()` reports the last-successful-read timestamp for each batch input —
