@@ -127,7 +127,8 @@ function setStoreBadge(airtable){
   const b=$('#store-badge'), l=$('#store-label');
   if(STATIC){ b.style.display='none'; return; }
   b.className='badge-dot '+(airtable?'ok':'bad');
-  l.textContent = airtable ? 'Airtable notes' : 'local notes';
+  l.textContent = airtable ? 'Airtable connected' : 'Airtable not connected';
+  b.title = airtable ? 'Notes store: Airtable is connected' : 'Notes store: Airtable unreachable — notes save locally';
 }
 // Source-data staleness banner — amber, dismissible, top of every view. Warns when
 // a batch input's last successful read is older than stale_days (default 3). Driven
@@ -844,7 +845,7 @@ function renderViewTiles(){
       return n;
     } catch(_){ return '—'; }
   }
-  const label = `<button class="view-tiles-label" onclick="openViewsModal()" title="Open saved views — switch, star, or build a filter">VIEWS${_isAdmin()?' <span class="pv-admin-pill">ADMIN</span>':''}</button>`;
+  const label = `<button class="view-tiles-label" onclick="openViewsModal()" title="Open saved views — switch, star, or build a filter">★ Views${_isAdmin()?' <span class="pv-admin-pill">ADMIN</span>':''}</button>`;
   bar.innerHTML = label + tileViews.map(v=>{
     const cnt=countForView(v);
     const active=(v.id==='all')?(!activeViewId||activeViewId==='all'):(v.id===activeViewId);
