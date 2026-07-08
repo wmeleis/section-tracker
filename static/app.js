@@ -98,7 +98,6 @@ async function load() {
   // default to the first available term if the saved default isn't present
   const terms = availableTerms();
   if (filters.term && !terms.includes(filters.term)) filters.term = terms[0] || '';
-  $('#subtitle').textContent = allSections.length.toLocaleString() + ' sections · ' + terms.length + ' terms · registrar refresh ' + (refreshDate || '—');
   // Always-visible (everyone), same location/format as the program & student trackers:
   // "Updated: <mon d> at <time> ET" + "Build: <mon d, yyyy, time> ET".
   $('#last-updated').textContent = lastFetch ? ('Updated: ' +
