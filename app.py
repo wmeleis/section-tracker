@@ -87,9 +87,20 @@ def do_connect():
         _connect_state.update(running=False)
 
 
+def _asset_cb():
+    """Cache-bust token for the local app's CSS/JS = newest of their mtimes, so a
+    browser reload always picks up edited assets (the static build cache-busts on
+    its own; the local <link>/<script> tags previously had no version query)."""
+    paths = [os.path.join(HERE, 'static', 'style.css'), os.path.join(HERE, 'static', 'app.js')]
+    try:
+        return str(int(max(os.path.getmtime(p) for p in paths)))
+    except OSError:
+        return '0'
+
+
 @app.route('/')
 def dashboard():
-    return render_template('dashboard.html', is_admin=True)
+    return render_template('dashboard.html', is_admin=True, cb=_asset_cb())
 
 
 @app.route('/api/sections')

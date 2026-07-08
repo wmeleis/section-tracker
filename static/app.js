@@ -1012,6 +1012,7 @@ window.pvConfirmSave=pvConfirmSave;
 window.pvUpdateLoaded=pvUpdateLoaded;
 window.pvApplyDraft=pvApplyDraft;
 window.toggleSectionColPicker=toggleSectionColPicker;
+window.toggleFilters=toggleFilters;
 window.toggleSectionCol=toggleSectionCol;
 window.toggleAllSectionCols=toggleAllSectionCols;
 window.exportSectionsCsv=exportSectionsCsv;

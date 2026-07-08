@@ -152,6 +152,20 @@ copied from the student tracker's `toggleTopFilters`): `toggleFilters()` flips `
 and `applyFiltersState()` sets the `▸`/`▾ Filters` label; `<body class="filters-collapsed">`
 + `applyFiltersState()` in `load()` avoid a flash.
 
+**Columns + Export** live in a `.table-toolbar` row directly above the list (summary on the
+left, the two buttons right-aligned via `margin-left:auto`), NOT in the header (which keeps
+only Views / Console / Update data).
+
+**Two gotchas that bit the filter toggle:**
+1. `static/app.js` is wrapped in an IIFE (`(function(){ 'use strict'; … })()`), so a bare
+   `function foo(){}` is NOT global. **Any function referenced from an inline `onclick=` must
+   be exported at the bottom** (`window.foo = foo;`) — otherwise the click silently no-ops.
+2. The local app previously loaded `/static/{style.css,app.js}` with **no cache-buster**, so
+   the browser served stale assets after edits (looked like "the change didn't work"). Fixed:
+   `app.py:dashboard()` passes `cb=_asset_cb()` (newest of the two files' mtimes) and the
+   template appends `?v={{ cb }}`. These two tags sit outside the `app-root…toast` block that
+   `export_static` extracts, so the static build is unaffected (it cache-busts on its own).
+
 One **Resolved** button row (All/Unresolved/Resolved/Has notes) · a row of
 **dropdown filters**: Term (default Fall 2026; "All terms" option), Level
 (Grad/Undergrad), Modality (Instructional Method), Special Topics (All / only /
