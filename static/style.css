@@ -12,13 +12,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 
 /* Header */
 header{background:var(--surface);border-bottom:1px solid var(--border);padding:16px 24px;display:flex;justify-content:space-between;align-items:center;gap:16px;row-gap:10px;flex-wrap:wrap;position:sticky;top:0;z-index:100;box-shadow:var(--shadow)}
-.header-left{display:flex;flex-direction:column;align-items:flex-start;gap:3px;flex:0 0 auto}
+.header-left{display:flex;flex-direction:column;align-items:flex-start;gap:0;flex:0 0 auto}
 .header-name{display:flex;align-items:baseline}
-.header-times{display:flex;gap:14px}
+/* Freshness line — faint, low-key, directly under the title (matches other trackers) */
+.freshness-row{display:flex;gap:16px;padding:0;margin-top:2px}
+.freshness-row .last-updated{font-size:11px;font-weight:400;color:#aab2bd;letter-spacing:normal;white-space:nowrap}
 header h1{font-size:20px;font-weight:700;color:var(--text)}
 .subtitle{font-size:13px;color:var(--text-secondary);margin-left:12px}
 .header-right{display:flex;align-items:center;gap:12px;flex:0 0 auto;flex-wrap:wrap}
-.last-updated{font-size:13px;color:var(--text-secondary);margin-right:4px;white-space:nowrap;flex-shrink:0}
 .badge-dot{font-size:12px;display:inline-flex;align-items:center;gap:5px;color:var(--text-secondary)}
 .badge-dot .dot{width:8px;height:8px;border-radius:50%;background:var(--pending)}
 .badge-dot.ok .dot{background:var(--success)} .badge-dot.bad .dot{background:var(--danger)}
