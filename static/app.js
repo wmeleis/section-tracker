@@ -829,8 +829,6 @@ function pvUpdateLoaded(){
 
 // Views button label + starred-view tile bar.
 function renderViewTiles(){
-  const btn=$('#views-btn');
-  if(btn) btn.innerHTML = '★ Views' + (_isAdmin()?' <span class="pv-admin-pill">ADMIN</span>':'');
   const bar=$('#view-tiles'); if(!bar) return;
   const stars=getStarredIds();
   const starredViews=[...getTeamViews(), ...getPersonalViews()].filter(v=>stars.has(v.id));
@@ -846,7 +844,8 @@ function renderViewTiles(){
       return n;
     } catch(_){ return '—'; }
   }
-  bar.innerHTML = tileViews.map(v=>{
+  const label = `<button class="view-tiles-label" onclick="openViewsModal()" title="Open saved views — switch, star, or build a filter">VIEWS${_isAdmin()?' <span class="pv-admin-pill">ADMIN</span>':''}</button>`;
+  bar.innerHTML = label + tileViews.map(v=>{
     const cnt=countForView(v);
     const active=(v.id==='all')?(!activeViewId||activeViewId==='all'):(v.id===activeViewId);
     return `<button class="pv-tile${active?' active':''}" onclick="applyView('${v.id}')" title="${esc(v.name)}">
