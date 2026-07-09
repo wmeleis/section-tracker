@@ -91,6 +91,27 @@ catalog-title scan misses. Two title fields in that file map onto the two jobs:
   array-or-JSON-string.
 - `special_topics` / `times_offered` are `defaultHidden` columns (⊞ Columns) + Views filter
   fields; Prior Terms is a **number** field (at least / at most / equals).
+- **Shell classifier (`topic_class`) — separates real repeat-offering violations from
+  recurring container/umbrella courses.** A high `times_offered` is only a policy concern
+  when the SAME specific topic keeps being taught; a *shell* (a dept seminar, a generic
+  "Topics in ⟨field⟩" course, a research/dissertation container) racks up a high count
+  without any specific topic repeating. `build_historical_st.classify_topic()` buckets every
+  topic from two signals: **(2) title content** — label-only title / container keyword
+  (`_CONTAINER`: seminar, proseminar, dissertation, thesis, independent/directed study,
+  practicum, colloquium, "research methods/seminar/…", …) / section title echoing the
+  catalog shell name → **Container shell**; and **(1) title variety of the course** — distinct
+  topic-titles the course has ever hosted: `≥ 5` distinct ⇒ genuinely rotating, so a specific
+  title recurring there is a **Repeat topic** (real violation candidate); `1` (or 2–4)
+  distinct with no content signal ⇒ **Needs review** (de-facto-permanent course, or generic).
+  Emitted in `historical_st.json` as `topic_class` (topic_key → class) + `topic_class_reason`;
+  `fetch_and_parse` stamps each section's `topic_class` during the times-offered join
+  (`programs.sections.topic_class`, migrated in). Surfaced as the `defaultHidden` **Topic Type**
+  column + a `topic_class` select filter field. The **"Special topics — 2+ prior terms"** view
+  adds a rule `topic_class ≠ Container shell`, so shells don't inflate the violation list.
+  **`st_review_export.py`** writes `~/Downloads/special_topics_review_<date>.csv` — the current-AY
+  2+-prior set bucketed shell / review / repeat with the offering #, prior-term count, instructor,
+  and classification reason, to audit the exclusions. (Class counts across all ST topics
+  as of 2026-07-09: ~1073 Repeat, ~253 Needs review, ~182 Container shell.)
 - **Refresh:** `fetch_historical.py` re-pulls the Historical Courses view (direct REST data
   export, no custom view) and rebuilds `historical_st.json` **daily** — gated ~20h, keep-
   last-good on any failure — wired into `run_update.py` and the local Update button;

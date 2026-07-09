@@ -104,21 +104,23 @@ def _load_historical_st():
     try:
         d = json.load(open(p))
         return (set(d.get('st_codes', [])), d.get('offerings', {}),
-                d.get('crn_topic', {}), d.get('course_titles', {}))
+                d.get('crn_topic', {}), d.get('course_titles', {}),
+                d.get('topic_class', {}))
     except Exception:
-        return set(), {}, {}, {}
+        return set(), {}, {}, {}, {}
 
 # _ST_OFFERINGS: topic_key -> [{term, rank, instructor, enrolled, title}] (most-recent-
 # first, through Fall 2026). _ST_CRN_TOPIC: "term|crn" -> topic_key. _ST_COURSE_TITLES:
-# course code -> catalog/shell Course Title (for special-topics shells).
-_ST_CODES, _ST_OFFERINGS, _ST_CRN_TOPIC, _ST_COURSE_TITLES = _load_historical_st()
+# course code -> catalog/shell Course Title (for special-topics shells). _ST_TOPIC_CLASS:
+# topic_key -> 'Container shell' | 'Needs review' | 'Repeat topic' (shell classifier).
+_ST_CODES, _ST_OFFERINGS, _ST_CRN_TOPIC, _ST_COURSE_TITLES, _ST_TOPIC_CLASS = _load_historical_st()
 
 
 def reload_historical_st():
     """Re-read historical_st.json into the module globals — call after
     fetch_historical.maybe_refresh() regenerates it mid-process."""
-    global _ST_CODES, _ST_OFFERINGS, _ST_CRN_TOPIC, _ST_COURSE_TITLES
-    _ST_CODES, _ST_OFFERINGS, _ST_CRN_TOPIC, _ST_COURSE_TITLES = _load_historical_st()
+    global _ST_CODES, _ST_OFFERINGS, _ST_CRN_TOPIC, _ST_COURSE_TITLES, _ST_TOPIC_CLASS
+    _ST_CODES, _ST_OFFERINGS, _ST_CRN_TOPIC, _ST_COURSE_TITLES, _ST_TOPIC_CLASS = _load_historical_st()
 
 
 HIST_CSV = os.path.join(HERE, 'data', 'historical_courses.csv')
@@ -196,6 +198,7 @@ def sections_from_historical(term_label, subj_college_map, csv_path=HIST_CSV):
                     'course_title': _ST_COURSE_TITLES.get(code, ''),
                     'times_offered': '',
                     'previous_offerings': '',
+                    'topic_class': '',
                     'class_term': (r.get('Course Term') or '').strip(),
                     'refresh_date': (r.get('Refresh Date') or '').strip(),
                 }
@@ -388,6 +391,7 @@ def _make_section(crn, row, term_label):
         'course_title': _ST_COURSE_TITLES.get(f'{subject} {number}', ''),  # catalog/shell name (ST); '' -> section title == course title
         'times_offered': '',        # filled by the per-topic historical join below
         'previous_offerings': '',   # JSON list of earlier offerings (term/instructor/enrolled)
+        'topic_class': '',          # shell classifier: Container shell / Needs review / Repeat topic
         'class_term': _clean(row.get('Class Term')),
         'refresh_date': _clean(row.get('Refresh Date')),
     }
@@ -481,6 +485,7 @@ def fetch_and_parse(use_cache=False):
             tk = _topic_key_for(s)
             if not tk:
                 continue
+            s['topic_class'] = _ST_TOPIC_CLASS.get(tk, '')
             sec_rank = _hist.rank_int(s['term'])
             by_term = {}
             for o in _ST_OFFERINGS.get(tk, []):

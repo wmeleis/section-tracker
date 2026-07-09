@@ -146,6 +146,45 @@ def _canon_map(topics):
     return cmap
 
 
+# ── Shell classifier ─────────────────────────────────────────────────────────
+# A "special topics — N+ prior terms" hit is only a policy concern when the SAME
+# specific topic keeps being taught. A shell/umbrella course (a recurring container
+# whose section title never names a specific rotating topic — dept seminars, generic
+# "Topics in <field>" courses, etc.) racks up a high count without any specific topic
+# repeating, so it should not count as a violation. Two signals classify each topic:
+#   (2) content of the title — label-only / container keyword / echoes the catalog name
+#   (1) title variety of the COURSE — a shell repeats one title every term (variety 1);
+#       a genuine rotating ST course cycles many titles (high variety), so a specific
+#       title that recurs there IS a real repeat.
+# Output classes: 'Container shell' (exclude), 'Needs review' (ambiguous middle),
+# 'Repeat topic' (a specific topic genuinely repeated — the real violation candidate).
+_CONTAINER = re.compile(
+    r'\b(?:pro)?seminar\b|\bdissertation\b|\bthes[ei]s\b'
+    r'|\b(?:independent|directed|individual)\s+stud(?:y|ies)\b'
+    r'|\bpracticum\b|\bcapstone\b|\bcolloqui(?:um|a)\b|\breading\s+course\b'
+    r'|\binternship\b|\bco-?op\b|\bfieldwork\b|\bfield\s+(?:study|experience)\b'
+    r'|\bcontinuation\b|\bspecial\s+problems\b|\bdirected\s+research\b'
+    r'|\bresearch\s+(?:methods?|seminar|rotation|practicum|directions?)\b', re.I)
+
+_VARIETY_ROTATING = 5   # >= this many distinct topics in a course => genuinely rotating
+
+
+def classify_topic(normtopic, rep_title, shell_title, variety):
+    """(class, reason) for a topic, from its title content + the course's title variety."""
+    t = (normtopic or '').strip()
+    if not t:
+        return 'Container shell', 'label-only title (no specific topic named)'
+    if _CONTAINER.search(rep_title or '') or _CONTAINER.search(shell_title or ''):
+        return 'Container shell', 'container keyword (seminar/research/thesis/etc.)'
+    if t == norm_topic(shell_title or ''):
+        return 'Container shell', 'section title echoes the catalog shell name'
+    if variety >= _VARIETY_ROTATING:
+        return 'Repeat topic', f'specific topic in a rotating course ({variety} distinct topics)'
+    if variety <= 1:
+        return 'Needs review', 'course has only ever run one topic title (de-facto permanent? or generic)'
+    return 'Needs review', f'low title variety ({variety} distinct topics)'
+
+
 def build(csv_path=CSV_PATH):
     excl = _load_exclusions()
     is_st = defaultdict(bool)                    # code -> bool
@@ -218,6 +257,20 @@ def build(csv_path=CSV_PATH):
         lst.sort(key=lambda o: o['rank'], reverse=True)
         offerings[tk] = lst
 
+    # Classify each topic (shell / review / repeat). Variety = distinct topics the
+    # course hosts; rep_title = the topic's most-recent raw section title.
+    variety = defaultdict(int)
+    for tk in offerings:
+        variety[tk.split('␟', 1)[0]] += 1
+    topic_class = {}
+    topic_class_reason = {}
+    for tk, lst in offerings.items():
+        code, topic = tk.split('␟', 1)
+        rep_title = lst[0]['title'] if lst else ''
+        cls, why = classify_topic(topic, rep_title, course_titles.get(code, ''), variety[code])
+        topic_class[tk] = cls
+        topic_class_reason[tk] = why
+
     out = {
         'generated': datetime.datetime.now().isoformat(timespec='seconds'),
         'source': 'historical_courses.csv',
@@ -229,6 +282,8 @@ def build(csv_path=CSV_PATH):
         'offerings': offerings,
         'crn_topic': crn_topic,
         'course_titles': course_titles,
+        'topic_class': topic_class,
+        'topic_class_reason': topic_class_reason,
     }
     json.dump(out, open(OUT_PATH, 'w'), indent=1)
     return out

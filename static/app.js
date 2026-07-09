@@ -62,6 +62,7 @@ const SECTION_COLUMNS = [
   { key:'notes',       label:'Notes' },
   { key:'special_topics', label:'Special Topics', defaultHidden:true },
   { key:'times_offered',  label:'Prior Terms', num:true, defaultHidden:true },
+  { key:'topic_class',  label:'Topic Type',    defaultHidden:true },
   { key:'crn',          label:'CRN',           defaultHidden:true },
   { key:'schedule',     label:'Schedule',      defaultHidden:true },
   { key:'meeting_time', label:'Meeting Time',  defaultHidden:true },
@@ -483,6 +484,7 @@ const SECTION_FILTER_FIELDS = [
   {key:'has_notes',   label:'Has Notes',        type:'boolean',value:s=>(s.notes&&s.notes.trim())?'Y':'N'},
   {key:'special_topics',label:'Special Topics', type:'boolean',value:s=>s.special_topics==='Yes'?'Y':'N'},
   {key:'times_offered',label:'Prior Terms',      type:'number', value:s=>s.times_offered},
+  {key:'topic_class', label:'Topic Type',        type:'select', value:s=>s.topic_class||''},
   {key:'updated_by',  label:'Updated By',       type:'text',   value:s=>s.updated_by||''},
 ];
 function _svField(key){ return SECTION_FILTER_FIELDS.find(f=>f.key===key); }

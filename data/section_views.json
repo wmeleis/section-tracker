@@ -48,7 +48,7 @@
       "state": {
         "visibleCols": [
           "course_code", "section", "title", "term", "college", "campus",
-          "instructional_method", "times_offered", "faculty_name",
+          "instructional_method", "times_offered", "topic_class", "faculty_name",
           "modality_resolved", "notes"
         ],
         "filters": {
@@ -61,7 +61,8 @@
           "children": [
             { "type": "rule", "field": "term", "op": "in", "value": ["Spring 2026", "Summer 2026", "Fall 2026"] },
             { "type": "rule", "field": "special_topics", "op": "in", "value": ["Y"] },
-            { "type": "rule", "field": "times_offered", "op": ">=", "value": "2" }
+            { "type": "rule", "field": "times_offered", "op": ">=", "value": "2" },
+            { "type": "rule", "field": "topic_class", "op": "not_in", "value": ["Container shell"] }
           ]
         }
       }

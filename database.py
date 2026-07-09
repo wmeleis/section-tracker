@@ -19,7 +19,7 @@ SECTION_COLUMNS = [
     'meeting_time', 'location', 'faculty_name', 'faculty_email', 'faculty_type',
     'faculty_category', 'honors_ind', 'attributes', 'course_description',
     'total_enrolled', 'special_topics', 'course_title', 'times_offered', 'previous_offerings',
-    'class_term', 'refresh_date',
+    'topic_class', 'class_term', 'refresh_date',
 ]
 
 
