@@ -16,3 +16,6 @@ docs/
 # logs
 data/*.log
 data/last_historical_fetch
+
+# launchd once-per-day success marker (runtime state)
+data/last_success_date

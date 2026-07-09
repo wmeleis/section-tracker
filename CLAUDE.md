@@ -160,7 +160,7 @@ only thing baked into the daily snapshot.
 | `export_static.py` | Build encrypted, password-gated `docs/` (AES-256-GCM / PBKDF2) |
 | `deploy.py` | Force-push `docs/` as one squashed commit to `gh-pages` |
 | `run_update.py` | One cycle: pull → store → build → deploy (used by launchd + Update button) |
-| `update.sh` + `launchd/…plist` | Daily refresh at 06:30 local time |
+| `update.sh` + `launchd/…plist` | Daily refresh, retry-until-success (see below) |
 | `static/app.js`, `static/style.css`, `templates/dashboard.html` | Frontend |
 
 ## UI
@@ -239,6 +239,17 @@ field serving both purposes.
 repo and **force-pushes a single squashed commit** to `gh-pages` (Pages source =
 `gh-pages` /), so neither branch accumulates the daily 12 MB `.enc`. The local
 "Update data" button and the daily launchd job both run the full pull→build→deploy.
+
+**Schedule — retry-until-success, once/day (`launchd` `com.sectiontracker.update`).**
+launchd fires `update.sh` every **30 min** (`StartInterval 1800` + `RunAtLoad`, so it
+also fires on load/wake). `update.sh` gates itself to at most **one successful refresh
+per calendar day**: before 6am it skips; if `data/last_success_date` already equals
+today it skips; otherwise it runs `run_update.py` and, **only on exit 0**, stamps today
+into `data/last_success_date`. A failed attempt (exit ≠ 0) leaves the marker stale, so
+the next 30-min firing retries — this fixes the old `StartCalendarInterval` 06:30 design
+where a single morning failure (e.g. the network not being up yet, as on 2026-07-09)
+left the site stale until the next day. After the day's first success, later firings are
+cheap no-ops (date check + exit). `data/last_success_date` is gitignored (runtime state).
 
 ## Security tradeoff (note)
 The Airtable token (read+write to the base) is embedded in the encrypted payload,

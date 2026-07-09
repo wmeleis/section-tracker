@@ -9,12 +9,13 @@
     <string>/bin/bash</string>
     <string>/Users/wmeleis/committees/nu-docs/Curriculum/SectionTracker/update.sh</string>
   </array>
-  <!-- Daily at 06:30 local time. macOS runs a missed job after wake. -->
-  <key>StartCalendarInterval</key>
-  <dict>
-    <key>Hour</key><integer>6</integer>
-    <key>Minute</key><integer>30</integer>
-  </dict>
+  <!-- Fire every 30 min (+ on load/wake). update.sh gates itself to one
+       SUCCESSFUL refresh per day starting ~6am, retrying after any failure
+       (e.g. network not up at 6:30am) instead of leaving the site stale. -->
+  <key>StartInterval</key>
+  <integer>1800</integer>
+  <key>RunAtLoad</key>
+  <true/>
   <key>StandardOutPath</key>
   <string>/Users/wmeleis/committees/nu-docs/Curriculum/SectionTracker/data/launchd.log</string>
   <key>StandardErrorPath</key>
