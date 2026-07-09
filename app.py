@@ -127,6 +127,11 @@ def api_tableau_status():
     return jsonify({'connected': ok, 'detail': detail})
 
 
+@app.route('/api/airtable/status')
+def api_airtable_status():
+    return jsonify({'connected': notes_store.airtable_available(force=True)})
+
+
 @app.route('/api/status')
 def api_status():
     return jsonify({

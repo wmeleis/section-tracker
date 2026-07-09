@@ -106,8 +106,8 @@ async function load() {
   const _buildEl = $('#app-build');
   if (_buildEl) _buildEl.textContent = data.built_at ? ('Build: ' +
     new Date(data.built_at).toLocaleString('en-US', {timeZone:'America/New_York', month:'short', day:'numeric', year:'numeric', hour:'numeric', minute:'2-digit'}) + ' ET') : '';
-  setStoreBadge(data.airtable);
-  checkTableau();   // local-only Tableau connection badge (colored dot)
+  checkAirtable();  // local-only Airtable connection button (colored dot)
+  checkTableau();   // local-only Tableau connection button (colored dot)
   // Staleness banner is a LOCAL-app feature only (owner). On the shared static
   // site, the always-visible refresh/build times above are the staleness signal.
   if (!STATIC) renderSourceHealthBanner(data.source_health);
@@ -124,13 +124,6 @@ async function load() {
   else renderAll();
 }
 function fmtTime(iso){ try { return new Date(iso).toLocaleString('en-US',{timeZone:'America/New_York',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})+' ET'; } catch(e){ return iso; } }
-function setStoreBadge(airtable){
-  const b=$('#store-badge'), l=$('#store-label');
-  if(STATIC){ b.style.display='none'; return; }
-  b.className='badge-dot '+(airtable?'ok':'bad');
-  l.textContent = airtable ? 'Airtable connected' : 'Airtable not connected';
-  b.title = airtable ? 'Notes store: Airtable is connected' : 'Notes store: Airtable unreachable — notes save locally';
-}
 // Source-data staleness banner — amber, dismissible, top of every view. Warns when
 // a batch input's last successful read is older than stale_days (default 3). Driven
 // by the baked/served `source_health` payload, so it works on both the local app and
@@ -174,7 +167,7 @@ function toggleFilters(){ _filtersOpen = !_filtersOpen; applyFiltersState(); }
 // On the static site there's no local server — hide Console + Update controls.
 function hideStaticOnlyHeader(){
   if(!STATIC) return;
-  ['#console-btn','#tableau-status'].forEach(sel=>{ const e=$(sel); if(e) e.style.display='none'; });
+  ['#console-btn','#tableau-status','#store-badge'].forEach(sel=>{ const e=$(sel); if(e) e.style.display='none'; });
 }
 
 function uniq(key){ return [...new Set(allSections.map(s=>s[key]).filter(Boolean))].sort(); }
@@ -939,18 +932,31 @@ function exportSectionsCsv(){
   URL.revokeObjectURL(url);
 }
 
-// ---------- Tableau connection badge (local only; colored dot like the CIM tracker) ----------
+// ---------- connection buttons (local only; colored dot like the CIM tracker) ----------
 async function checkTableau(){
   if(STATIC) return;
   const b=$('#tableau-status'), l=$('#tableau-status-label'); if(!b) return;
-  b.className='badge-dot conn-badge'; if(l) l.textContent='Checking…'; b.title='Checking Tableau connection…';
+  b.className='conn-btn'; if(l) l.textContent='Tableau: checking…'; b.title='Checking Tableau connection…';
   try{
     const st=await (await fetch(API+'/api/tableau/status')).json();
-    b.className='badge-dot conn-badge '+(st.connected?'ok':'bad');
-    if(l) l.textContent = st.connected ? 'Connected' : 'Not connected';
-    b.title=(st.connected?'Tableau connected':'Tableau not connected')+(st.detail?(' — '+st.detail):'');
+    b.className='conn-btn '+(st.connected?'ok':'bad');
+    if(l) l.textContent = st.connected ? 'Tableau connected' : 'Tableau not connected';
+    b.title=(st.connected?'Tableau (data source) connected':'Tableau not connected')+(st.detail?(' — '+st.detail):'');
   }catch(e){
-    b.className='badge-dot conn-badge bad'; if(l) l.textContent='Not connected'; b.title='Cannot reach local server';
+    b.className='conn-btn bad'; if(l) l.textContent='Tableau not connected'; b.title='Cannot reach local server';
+  }
+}
+async function checkAirtable(){
+  if(STATIC) return;
+  const b=$('#store-badge'), l=$('#store-label'); if(!b) return;
+  b.className='conn-btn'; if(l) l.textContent='Airtable: checking…'; b.title='Checking Airtable connection…';
+  try{
+    const st=await (await fetch(API+'/api/airtable/status')).json();
+    b.className='conn-btn '+(st.connected?'ok':'bad');
+    if(l) l.textContent = st.connected ? 'Airtable connected' : 'Airtable not connected';
+    b.title = st.connected ? 'Notes store: Airtable connected' : 'Notes store: Airtable unreachable — notes save locally';
+  }catch(e){
+    b.className='conn-btn bad'; if(l) l.textContent='Airtable not connected'; b.title='Cannot reach local server';
   }
 }
 
@@ -984,6 +990,7 @@ if(document.readyState==='loading') document.addEventListener('DOMContentLoaded'
 
 // ---------- expose inline-handler globals ----------
 window.checkTableau=checkTableau;
+window.checkAirtable=checkAirtable;
 window.openViewsModal=openViewsModal;
 window.closeViewsModal=closeViewsModal;
 window.applyView=applyView;

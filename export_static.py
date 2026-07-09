@@ -267,10 +267,10 @@ def build():
     body = body.replace('/static/', '')
     # hidden until the gate unlocks (boot() reveals it) — gate is now a sibling
     body = body.replace('<div id="app-root">', '<div id="app-root" style="display:none">', 1)
-    # drop local-server-only header controls on the static site (Console button +
-    # Tableau connection badge). Views (team read-only), Columns, Export stay.
+    # drop the local-server-only Console button on the static site. The connection
+    # buttons (Tableau + Airtable) are runtime-hidden on static (hideStaticOnlyHeader);
+    # Views (team read-only), Columns, Export stay.
     body = body.replace('<button class="header-secondary-btn" id="console-btn" onclick="openConsoleModal()">Console</button>', '')
-    body = body.replace('<button class="badge-dot conn-badge" id="tableau-status" onclick="checkTableau()" title="Data source (Tableau) connection — click to re-check"><span class="dot"></span><span id="tableau-status-label">Checking…</span></button>', '')
     body += '<div class="toast" id="toast"></div>'
     with open(os.path.join(DOCS, 'index.html'), 'w') as f:
         f.write(build_index(body))

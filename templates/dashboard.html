@@ -19,8 +19,8 @@
       </div>
     </div>
     <div class="header-right">
-      <button class="badge-dot conn-badge" id="tableau-status" onclick="checkTableau()" title="Data source (Tableau) connection — click to re-check"><span class="dot"></span><span id="tableau-status-label">Checking…</span></button>
-      <span class="badge-dot" id="store-badge" title="Notes store"><span class="dot"></span><span id="store-label">notes</span></span>
+      <button class="conn-btn" id="tableau-status" onclick="checkTableau()" title="Tableau (data source) connection — click to re-check"><span class="dot"></span><span id="tableau-status-label">Checking…</span></button>
+      <button class="conn-btn" id="store-badge" onclick="checkAirtable()" title="Airtable (notes store) connection — click to re-check"><span class="dot"></span><span id="store-label">Checking…</span></button>
       <button class="header-secondary-btn" id="console-btn" onclick="openConsoleModal()">Console</button>
     </div>
   </header>
