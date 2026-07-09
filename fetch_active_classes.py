@@ -41,9 +41,18 @@ WORKBOOK     = 'Active Classes'
 # custom view and listing it here.
 TERMS = [
     {'cv': 'Fall 2026',   'label': 'Fall 2026'},
-    {'cv': 'Spring 2026', 'label': 'Spring 2026'},
     {'cv': 'Summer 2026', 'label': 'Summer 2026'},
 ]
+
+# Terms that have aged out of the live "Active Classes" custom views (which only
+# expose the current/upcoming roster) but that we still want listed. These are
+# backfilled from the "Historical Courses" feed (data/historical_courses.csv) via
+# sections_from_historical(). The historical feed is a THIN source — it carries
+# term / course + section title / CRN / faculty / enrollment only, with NO
+# instructional method, campus, schedule, etc. — so backfilled rows have those
+# fields blank. College is derived by matching the subject code against the live
+# terms' own subject->college mapping; Level is derived from the course number.
+HISTORICAL_BACKFILL_TERMS = ['Spring 2026']
 
 def _raw_csv(label):
     slug = label.lower().replace(' ', '_')
@@ -110,6 +119,102 @@ def reload_historical_st():
     fetch_historical.maybe_refresh() regenerates it mid-process."""
     global _ST_CODES, _ST_OFFERINGS, _ST_CRN_TOPIC, _ST_COURSE_TITLES
     _ST_CODES, _ST_OFFERINGS, _ST_CRN_TOPIC, _ST_COURSE_TITLES = _load_historical_st()
+
+
+HIST_CSV = os.path.join(HERE, 'data', 'historical_courses.csv')
+
+
+def _subject_college_map(sections):
+    """Majority college per subject code, learned from the live-fetched terms
+    (the only source that carries Class College). A subject that maps to more than
+    one college — a handful of stray cross-listings — takes its most common."""
+    from collections import Counter, defaultdict
+    tally = defaultdict(Counter)
+    for s in sections:
+        subj, col = (s.get('subject') or '').strip(), (s.get('college') or '').strip()
+        if subj and col:
+            tally[subj][col] += 1
+    return {subj: c.most_common(1)[0][0] for subj, c in tally.items()}
+
+
+def _level_from_number(number):
+    """UG/GR from the course number (matches the Registrar 'Level' field exactly:
+    <5000 -> UG, >=5000 -> GR). '' when the number has no digits."""
+    digits = ''.join(ch for ch in str(number or '') if ch.isdigit())[:4]
+    if not digits:
+        return ''
+    return 'GR' if int(digits) >= 5000 else 'UG'
+
+
+def sections_from_historical(term_label, subj_college_map, csv_path=HIST_CSV):
+    """Build section rows for an aged-out term from the Historical Courses feed,
+    in the same schema as _make_section(). Rows are collapsed to one per CRN;
+    college comes from subj_college_map, level from the course number. Fields the
+    thin feed can't supply (instructional_method, campus, schedule, meeting_time,
+    location, faculty_email/type/category, honors, attributes, description) stay ''."""
+    if not os.path.exists(csv_path):
+        return []
+    by_crn = {}
+    order = []
+    with open(csv_path, encoding='utf-8-sig') as f:
+        for r in csv.DictReader(f):
+            if _hist.canon_term((r.get('Course Term') or '').strip()) != term_label:
+                continue
+            crn = (r.get('CRN') or '').strip()
+            subject = (r.get('Subject Code') or '').strip()
+            if not crn or crn.lower() == 'all' or not subject:
+                continue
+            number = str(r.get('Course Number') or '').strip()
+            if crn not in by_crn:
+                code = f'{subject} {number}'.strip()
+                title = (r.get('Section Title') or '').strip() or (r.get('Course Title') or '').strip()
+                by_crn[crn] = {
+                    'id': f'{term_label}|{crn}',
+                    'term': term_label,
+                    'crn': crn,
+                    'subject': subject,
+                    'course_number': number,
+                    'course_code': code,
+                    'section': '',
+                    'title': title,
+                    'college': subj_college_map.get(subject, ''),
+                    'campus': '',
+                    'instructional_method': '',
+                    'level': _level_from_number(number),
+                    'schedule': '',
+                    'meeting_time': '',
+                    'location': '',
+                    'faculty_name': '',
+                    'faculty_email': '',
+                    'faculty_type': '',
+                    'faculty_category': '',
+                    'honors_ind': '',
+                    'attributes': '',
+                    'course_description': '',
+                    'total_enrolled': 0,
+                    'special_topics': 'Yes' if (code in _ST_CODES or is_special_topic(title)) else '',
+                    'course_title': _ST_COURSE_TITLES.get(code, ''),
+                    'times_offered': '',
+                    'previous_offerings': '',
+                    'class_term': (r.get('Course Term') or '').strip(),
+                    'refresh_date': (r.get('Refresh Date') or '').strip(),
+                }
+                order.append(crn)
+            sec = by_crn[crn]
+            fac = f"{(r.get('Faculty First Name') or '').strip()} {(r.get('Faculty Last Name') or '').strip()}".strip()
+            if fac:
+                have = [p.strip() for p in sec['faculty_name'].split(';') if p.strip()]
+                if fac not in have:
+                    have.append(fac)
+                    sec['faculty_name'] = '; '.join(have)
+            if (r.get('Measure Names') or '').strip().lower() == 'avg. enrolled':
+                try:
+                    e = int(round(float(r.get('Measure Values') or 0)))
+                    if e > sec['total_enrolled']:
+                        sec['total_enrolled'] = e
+                except (ValueError, TypeError):
+                    pass
+    return [by_crn[c] for c in order]
 
 
 def _topic_key_for(sec):
@@ -334,6 +439,18 @@ def fetch_and_parse(use_cache=False):
                     refresh = secs[0]['refresh_date']
             except Exception as e:
                 print(f"  {t['label']}: skipped ({e})")
+        # Backfill aged-out terms (Spring 2026…) from the Historical Courses feed.
+        # College is learned from the live terms' own subject->college mapping;
+        # thin-feed fields (modality, campus, schedule…) stay blank. Done before
+        # the ST propagation + times-offered join so these rows participate too.
+        subj_college = _subject_college_map(all_sections)
+        for term_label in HISTORICAL_BACKFILL_TERMS:
+            hs = sections_from_historical(term_label, subj_college)
+            if hs:
+                with_college = sum(1 for s in hs if s['college'])
+                print(f"  {term_label}: {len(hs)} sections (from Historical Courses; "
+                      f"{with_college} with college, {len(hs) - with_college} blank)")
+                all_sections.extend(hs)
         # Course-number propagation: a course number with ANY special-topics-
         # titled section is a special-topics shell (e.g. CS 7180), so every
         # section under it is a special topic — including ones titled with just

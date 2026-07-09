@@ -13,7 +13,14 @@ let bakedPerTerm = null;     // per-term counts from the static payload (Console
 const filters = { term:['Fall 2026'], college:'', campus:'', subject:'', modality:'', resolved:'', level:'', special:'', priorTerms:'', search:'' };
 let sort = { key:'course_code', dir:1 };
 const expanded = new Set();
-const TERM_ORDER = ['Fall 2026','Spring 2026','Summer 2026'];
+// Chronological term rank (ascending: Winter<Spring<Summer<Fall within a year),
+// so term buttons / groupings read oldest→newest (Spring 2026 before Fall 2026).
+const _SEASON_RANK = { winter:0, spring:1, summer:2, fall:3 };
+function termRank(t){
+  const s=String(t||''); const m=s.match(/(19|20)\d{2}/); if(!m) return 1e9;
+  const seas=Object.keys(_SEASON_RANK).find(k=>s.toLowerCase().includes(k));
+  return (+m[0])*10 + (seas?_SEASON_RANK[seas]:0);
+}
 
 const COLLEGE_ABBREV = {
   'College of Science':'COS', 'College of Engineering':'COE',
@@ -44,6 +51,7 @@ const SECTION_COLUMNS = [
   { key:'course_code', label:'Course' },
   { key:'section',     label:'Sec' },
   { key:'title',       label:'Title' },
+  { key:'term',        label:'Term',    defaultHidden:true },
   { key:'college',     label:'College', fmt:abbr },
   { key:'campus',      label:'Campus' },
   { key:'instructional_method', label:'Modality' },
@@ -54,7 +62,6 @@ const SECTION_COLUMNS = [
   { key:'notes',       label:'Notes' },
   { key:'special_topics', label:'Special Topics', defaultHidden:true },
   { key:'times_offered',  label:'Prior Terms', num:true, defaultHidden:true },
-  { key:'term',         label:'Term',          defaultHidden:true },
   { key:'crn',          label:'CRN',           defaultHidden:true },
   { key:'schedule',     label:'Schedule',      defaultHidden:true },
   { key:'meeting_time', label:'Meeting Time',  defaultHidden:true },
@@ -216,8 +223,7 @@ function populateTermButtons(){
 
 // ---------- filtering ----------
 function availableTerms(){
-  const present=new Set(allSections.map(s=>s.term));
-  return TERM_ORDER.filter(t=>present.has(t)).concat([...present].filter(t=>!TERM_ORDER.includes(t)).sort());
+  return [...new Set(allSections.map(s=>s.term).filter(Boolean))].sort((a,b)=>termRank(a)-termRank(b));
 }
 function baseFiltered(skip){
   return allSections.filter(s=>{
@@ -918,7 +924,7 @@ function renderConsoleContent(d){
   html+='</table>';
 
   const pt=d.per_term||{};
-  const terms=Object.keys(pt).sort((a,b)=>{ const ia=TERM_ORDER.indexOf(a), ib=TERM_ORDER.indexOf(b); if(ia!==-1||ib!==-1) return (ia===-1?99:ia)-(ib===-1?99:ib); return a.localeCompare(b); });
+  const terms=Object.keys(pt).sort((a,b)=>termRank(a)-termRank(b));
   if(terms.length){
     html+='<h3 style="margin:18px 0 10px">Sections per term</h3>';
     html+='<table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="background:#f1f5f9;text-align:left">'

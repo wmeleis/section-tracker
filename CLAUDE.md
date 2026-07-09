@@ -13,7 +13,7 @@ A dashboard for analyzing **Fall 2026 course sections** — primarily **modality
 ## Data source — Tableau "Active Classes" (Registrar site)
 The view is gated behind empty Subject Code + Class College multi-selects plus a
 term parameter, so a plain REST export returns nothing. The owner saved one shared
-Tableau **Custom View per term** ("Fall 2026", "Spring 2026", "Summer 2026"), each
+Tableau **Custom View per current/upcoming term** ("Fall 2026", "Summer 2026"), each
 with its term + all subjects + all colleges selected. A custom view bakes its
 filter state server-side, so the REST custom-view data endpoint returns that term's
 full section table in one request — **no browser needed for the recurring pull**.
@@ -24,9 +24,29 @@ site** (the PAT JSON's `site` key points elsewhere — don't use it). PAT in
 `data/tableau_pat.json` (gitignored). Endpoint:
 `/api/exp/sites/{site}/customviews/{cv}/data`. ~25k sections across 3 terms.
 
+**Aged-out terms backfilled from Historical Courses (`HISTORICAL_BACKFILL_TERMS`, currently
+`Spring 2026`).** Active Classes only exposes the current/upcoming roster, so a past term
+(Spring 2026) returns 0 there. Those terms are rebuilt from the **Historical Courses** feed
+by `fetch_active_classes.sections_from_historical(term_label, subj_college_map)` — collapsed
+to one row per CRN, in the same schema as a live section. The historical feed is a **thin
+source**: it carries term / course + section title / CRN / faculty / enrollment (Avg. Enrolled)
+only, with **no instructional method, campus, section number, schedule, meeting time, location,
+faculty email/type, honors, attributes, or description** — so those fields are blank on
+backfilled rows (Campus/Modality render "—", and Modality/Campus filters don't apply to them).
+Two fields are **derived**: **College** from a majority `subject → college` map learned from
+the live terms' own rows (`_subject_college_map`; the ~18 legacy subject codes absent from the
+current catalog — ABRL, ECO, HSTY, PS, WRIT… — stay blank), and **Level** (UG/GR) from the
+course number (`_level_from_number`, `<5000 → UG`, matching the Registrar Level field exactly).
+Backfill runs inside `fetch_and_parse` **before** the ST-propagation + times-offered join, so
+these rows get special-topics flags and prior-term counts like any live section. ~8.8k Spring
+sections. (Add another aged-out term by listing its canonical label in `HISTORICAL_BACKFILL_TERMS`.)
+
 **Term is part of the key.** CRNs repeat across terms, so every section's id and
-the DB primary key are `"{term}|{crn}"`. The dashboard's **Term** dropdown filter
-scopes everything to one term (default Fall 2026; "All terms" shows every term).
+the DB primary key are `"{term}|{crn}"`. The dashboard's **Term** button row is
+multi-select (`filters.term` is an array; `[]` = all terms, default `['Fall 2026']`),
+with an "All terms" button. The buttons are ordered **chronologically ascending**
+(`termRank` = year·10 + Winter<Spring<Summer<Fall), so e.g. Spring 2026 sits before
+Fall 2026. **Term** is also a (defaultHidden) table column, placed right after Title.
 
 **Special topics + times offered (two derived fields — single source: Historical Courses).**
 Both come from the Registrar's **"Historical Courses"** section list (all terms with
@@ -86,8 +106,9 @@ The store is a full DELETE+INSERT, but if a term that currently HAS rows comes b
 **zero** rows in a pull (intermittent-empty Tableau response, or an aged-out source), its
 existing rows are **preserved instead of wiped** — this protects the active term (Fall)
 from a single bad pull. A term that already had no rows stays empty (a genuinely dropped
-term like **Spring 2026**, which aged out of Active Classes as a past term, is not
-resurrected). Added 2026-07-07 after a 6:30 scan pulled Spring 2026 = 0 and the old
+term that has no live custom view and isn't in `HISTORICAL_BACKFILL_TERMS` is not
+resurrected; **Spring 2026** is now backfilled from Historical Courses — see above — so it
+is no longer empty). Added 2026-07-07 after a 6:30 scan pulled Spring 2026 = 0 and the old
 unconditional wipe deleted that term (irrecoverable — `docs/` gitignored, gh-pages squashed;
 only a Time Machine copy survived). Partial drops (a term returning far fewer rows, not zero)
 are **not** guarded yet.
@@ -193,7 +214,9 @@ remains as buttons. There is no longer a modality "pipeline" tile bar.)
     An admin star/unstar on a team view persists `starred` back to the shared file
     (`pvStarById`). Shipped starred team views: **Live Cast courses**
     (Modality = Live Cast), **Live Cast — needs justification** (Live Cast AND
-    `has_notes = No`), and **Special topics — 2+ prior terms**.
+    `has_notes = No`), and **Special topics — 2+ prior terms** (`special_topics=Y`
+    AND `times_offered>=2`, term scoped to **Spring 2026 + Fall 2026** — the two main
+    semesters — with the **Term** column shown so the two terms are distinguishable).
 
 **Live Cast justifications live in the Notes field** (no dedicated column). For a
 Live Cast section the detail panel relabels "College notes" → **"Live Cast
