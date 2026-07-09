@@ -311,7 +311,9 @@ function renderDetail(s){
   const d=el('div','detail');
   const kv=rows=>'<div class="kv">'+rows.map(([k,v])=>`<div class="k">${esc(k)}</div><div>${v==null||v===''?'—':esc(v)}</div>`).join('')+'</div>';
   const left=el('div'); left.innerHTML='<h4>Section</h4>'+kv([
-    ['CRN',s.crn],['Course',s.course_code],['Section',s.section],['Title',s.title],
+    ['CRN',s.crn],['Course',s.course_code],
+    ['Course title', s.course_title || s.title],
+    ['Section',s.section],['Section title',s.title],
     ['College',s.college],['Campus',s.campus],['Level',s.level],['Schedule',s.schedule],
     ['Enrolled',s.total_enrolled],['Honors',s.honors_ind],
     ['Special topics', s.special_topics==='Yes' ? 'Yes' : 'No'],
@@ -332,7 +334,7 @@ function renderDetail(s){
     if(prev.length){
       po.innerHTML+=kv(prev.map(o=>{
         const term=(o.term||'').replace(/\s+Semester$/,'');
-        const parts=[o.instructor||''];
+        const parts=[o.title||'', o.instructor||''];
         if(o.sections>1) parts.push(o.sections+' sections');
         if(o.enrolled!=null&&o.enrolled!=='') parts.push(o.enrolled+' enrolled');
         return [term, parts.filter(Boolean).join(' · ')||'—'];

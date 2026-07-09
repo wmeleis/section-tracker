@@ -112,7 +112,9 @@ def build(csv_path=CSV_PATH):
     excl = _load_exclusions()
     is_st = defaultdict(bool)                    # code -> bool
     seen = defaultdict(set)                      # (code, topic) -> {(term, crn)}
-    meta = {}                                    # (code, topic, term, crn) -> {instr:set, enr:int|None}
+    meta = {}                                    # (code, topic, term, crn) -> {instr, enr, title}
+    course_titles = {}                           # code -> catalog/shell Course Title (freshest)
+    _ct_rank = {}
     rows = skipped = 0
     with open(csv_path, encoding='utf-8-sig') as f:
         for r in csv.DictReader(f):
@@ -132,7 +134,7 @@ def build(csv_path=CSV_PATH):
             topic = norm_topic(st or ct)
             crn = (r.get('CRN') or '').strip()
             seen[(code, topic)].add((term, crn))
-            m = meta.setdefault((code, topic, term, crn), {'instr': set(), 'enr': None})
+            m = meta.setdefault((code, topic, term, crn), {'instr': set(), 'enr': None, 'title': (st or ct)})
             fac = f"{(r.get('Faculty First Name') or '').strip()} {(r.get('Faculty Last Name') or '').strip()}".strip()
             if fac:
                 m['instr'].add(fac)
@@ -141,6 +143,9 @@ def build(csv_path=CSV_PATH):
                     m['enr'] = int(round(float(r.get('Measure Values') or 0)))
                 except (ValueError, TypeError):
                     pass
+            rk = rank_int(term)                        # keep the freshest Course (shell) title per code
+            if ct and rk >= _ct_rank.get(code, -1):
+                _ct_rank[code] = rk; course_titles[code] = ct
 
     st_codes = sorted(c for c, v in is_st.items() if v and c not in excl)
     st_set = set(st_codes)
@@ -157,7 +162,7 @@ def build(csv_path=CSV_PATH):
             m = meta.get((code, topic, term, crn), {})
             lst.append({'term': term, 'rank': rank_int(term),
                         'instructor': '; '.join(sorted(m.get('instr') or [])),
-                        'enrolled': m.get('enr')})
+                        'enrolled': m.get('enr'), 'title': m.get('title') or ''})
             if crn:
                 crn_topic[f'{canon_term(term)}|{crn}'] = tk
         lst.sort(key=lambda o: o['rank'], reverse=True)
@@ -173,6 +178,7 @@ def build(csv_path=CSV_PATH):
         'excluded_codes': sorted(excl),
         'offerings': offerings,
         'crn_topic': crn_topic,
+        'course_titles': course_titles,
     }
     json.dump(out, open(OUT_PATH, 'w'), indent=1)
     return out

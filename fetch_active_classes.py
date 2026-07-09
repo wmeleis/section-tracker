@@ -94,20 +94,22 @@ def _load_historical_st():
     p = os.path.join(HERE, 'data', 'historical_st.json')
     try:
         d = json.load(open(p))
-        return set(d.get('st_codes', [])), d.get('offerings', {}), d.get('crn_topic', {})
+        return (set(d.get('st_codes', [])), d.get('offerings', {}),
+                d.get('crn_topic', {}), d.get('course_titles', {}))
     except Exception:
-        return set(), {}, {}
+        return set(), {}, {}, {}
 
-# _ST_OFFERINGS: topic_key -> [{term, rank, instructor, enrolled}] (most-recent-first,
-# through Fall 2026). _ST_CRN_TOPIC: "term|crn" -> topic_key (exact per-section join).
-_ST_CODES, _ST_OFFERINGS, _ST_CRN_TOPIC = _load_historical_st()
+# _ST_OFFERINGS: topic_key -> [{term, rank, instructor, enrolled, title}] (most-recent-
+# first, through Fall 2026). _ST_CRN_TOPIC: "term|crn" -> topic_key. _ST_COURSE_TITLES:
+# course code -> catalog/shell Course Title (for special-topics shells).
+_ST_CODES, _ST_OFFERINGS, _ST_CRN_TOPIC, _ST_COURSE_TITLES = _load_historical_st()
 
 
 def reload_historical_st():
     """Re-read historical_st.json into the module globals — call after
     fetch_historical.maybe_refresh() regenerates it mid-process."""
-    global _ST_CODES, _ST_OFFERINGS, _ST_CRN_TOPIC
-    _ST_CODES, _ST_OFFERINGS, _ST_CRN_TOPIC = _load_historical_st()
+    global _ST_CODES, _ST_OFFERINGS, _ST_CRN_TOPIC, _ST_COURSE_TITLES
+    _ST_CODES, _ST_OFFERINGS, _ST_CRN_TOPIC, _ST_COURSE_TITLES = _load_historical_st()
 
 
 def _topic_key_for(sec):
@@ -278,6 +280,7 @@ def _make_section(crn, row, term_label):
         'course_description': _clean(row.get('Course Description')),
         'total_enrolled': enrolled,
         'special_topics': 'Yes' if (f'{subject} {number}' in _ST_CODES or is_special_topic(_clean(row.get('Class Title')))) else '',
+        'course_title': _ST_COURSE_TITLES.get(f'{subject} {number}', ''),  # catalog/shell name (ST); '' -> section title == course title
         'times_offered': '',        # filled by the per-topic historical join below
         'previous_offerings': '',   # JSON list of earlier offerings (term/instructor/enrolled)
         'class_term': _clean(row.get('Class Term')),
@@ -367,17 +370,20 @@ def fetch_and_parse(use_cache=False):
                 if o['rank'] >= sec_rank:
                     continue   # same-term (concurrent) or later — not a *previous* offering
                 g = by_term.setdefault(o['term'], {'term': o['term'], 'rank': o['rank'],
-                                                   'instr': set(), 'enrolled': 0, 'sections': 0})
+                                                   'instr': set(), 'enrolled': 0, 'sections': 0, 'titles': set()})
                 if o.get('instructor'):
                     g['instr'].add(o['instructor'])
                 if isinstance(o.get('enrolled'), int):
                     g['enrolled'] += o['enrolled']
+                if o.get('title'):
+                    g['titles'].add(o['title'])
                 g['sections'] += 1
             prev = sorted(by_term.values(), key=lambda g: g['rank'], reverse=True)
             s['times_offered'] = len(prev)
             if prev:
                 s['previous_offerings'] = json.dumps(
-                    [{'term': g['term'], 'instructor': '; '.join(sorted(g['instr'])),
+                    [{'term': g['term'], 'title': ' · '.join(sorted(g['titles'])),
+                      'instructor': '; '.join(sorted(g['instr'])),
                       'enrolled': g['enrolled'], 'sections': g['sections']} for g in prev],
                     separators=(',', ':'))
             matched += 1

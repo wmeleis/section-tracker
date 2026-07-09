@@ -18,7 +18,7 @@ SECTION_COLUMNS = [
     'title', 'college', 'campus', 'instructional_method', 'level', 'schedule',
     'meeting_time', 'location', 'faculty_name', 'faculty_email', 'faculty_type',
     'faculty_category', 'honors_ind', 'attributes', 'course_description',
-    'total_enrolled', 'special_topics', 'times_offered', 'previous_offerings',
+    'total_enrolled', 'special_topics', 'course_title', 'times_offered', 'previous_offerings',
     'class_term', 'refresh_date',
 ]
 
