@@ -27,6 +27,8 @@ header h1{font-size:20px;font-weight:700;color:var(--text)}
 .conn-btn:hover{border-color:var(--accent)}
 .conn-btn .dot{width:8px;height:8px;border-radius:50%;background:var(--pending)}
 .conn-btn.ok .dot{background:var(--success)}
+.conn-btn.bad{border-color:var(--danger);color:var(--danger);background:#fef2f2}
+.conn-btn.bad:hover{border-color:var(--danger)}
 .conn-btn.bad .dot{background:var(--danger)}
 .header-secondary-btn{padding:8px 16px;border:2px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);cursor:pointer;font-size:13px;font-weight:600;transition:all .2s}
 .header-secondary-btn:hover{border-color:var(--accent);color:var(--accent)}
