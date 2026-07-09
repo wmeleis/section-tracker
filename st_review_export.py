@@ -9,11 +9,13 @@ import os
 import csv
 import json
 import datetime
+from collections import defaultdict
 import database as db
 import fetch_active_classes as fa
 
 CUR_TERMS = {'Spring 2026', 'Summer 2026', 'Fall 2026'}
 _CLASS_ORDER = {'Container shell': 0, 'Needs review': 1, 'Repeat topic': 2}
+_TERM_ORDER = {'Spring 2026': 0, 'Summer 2026': 1, 'Fall 2026': 2}
 
 
 def main():
@@ -24,16 +26,20 @@ def main():
     CT = hist.get('course_titles', {})   # course code -> catalog/shell title (shows it's ST)
 
     # One row per distinct topic in the current-AY 2+-prior-terms set (matches the view).
+    # Track which current-AY term(s) each topic runs in (a topic can span >1 term).
     seen = {}
+    terms_by_tk = defaultdict(set)
     for s in db.get_all_sections():
         if s['term'] not in CUR_TERMS or s.get('special_topics') != 'Yes':
             continue
         if int(s.get('times_offered') or 0) < 2:
             continue
         tk = fa._topic_key_for(s)
-        if not tk or tk in seen:
+        if not tk:
             continue
-        seen[tk] = s
+        terms_by_tk[tk].add(s['term'])
+        if tk not in seen:
+            seen[tk] = s
 
     out = []
     for tk, s in seen.items():
@@ -43,8 +49,10 @@ def main():
         cls = s.get('topic_class', '') or CLASS.get(tk, '')   # section value carries the title-match override
         why = ('section title matches the course title'
                if fa._is_title_only_shell(s) else REASON.get(tk, ''))
+        current_terms = '; '.join(sorted(terms_by_tk[tk], key=lambda t: _TERM_ORDER.get(t, 9)))
         out.append({
             'topic_class': cls,
+            'current_terms': current_terms,   # which of Spring/Summer/Fall 2026 it runs in
             'offering_number': n + 1,          # this Spring/Summer/Fall 2026 run is the Nth
             'prior_terms': n,                  # distinct terms it ran before its own term
             'course': s['course_code'],
@@ -63,8 +71,9 @@ def main():
 
     path = os.path.expanduser(
         '~/Downloads/special_topics_review_%s.csv' % datetime.date.today())
-    cols = ['topic_class', 'offering_number', 'prior_terms', 'course', 'course_title',
-            'topic_title', 'college', 'most_recent_prior_instructor', 'why_classified']
+    cols = ['topic_class', 'current_terms', 'offering_number', 'prior_terms', 'course',
+            'course_title', 'topic_title', 'college', 'most_recent_prior_instructor',
+            'why_classified']
     with open(path, 'w', newline='') as f:
         w = csv.DictWriter(f, fieldnames=cols)
         w.writeheader()
