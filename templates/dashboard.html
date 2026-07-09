@@ -72,9 +72,14 @@
         <button class="proposal-btn" data-v="yes" onclick="setResolved('yes')">Resolved</button>
         <button class="proposal-btn" data-v="notes" onclick="setResolved('notes')">Has notes</button>
       </div>
+      <div class="button-row" id="level-row">
+        <span class="row-label">Level</span>
+        <button class="proposal-btn active-all" data-v="" onclick="setLevel('')">All</button>
+        <button class="proposal-btn" data-v="UG" onclick="setLevel('UG')">Undergraduate</button>
+        <button class="proposal-btn" data-v="GR" onclick="setLevel('GR')">Graduate</button>
+      </div>
       <div class="filters">
         <div class="filter-group"><label>Term</label><select id="f-term"></select></div>
-        <div class="filter-group"><label>Level</label><select id="f-level"><option value="">All</option><option value="GR">Graduate</option><option value="UG">Undergraduate</option></select></div>
         <div class="filter-group"><label>Modality</label><select id="f-modality"></select></div>
         <div class="filter-group"><label>Special Topics</label><select id="f-special"><option value="">All</option><option value="Y">Special topics only</option><option value="N">Not special topics</option></select></div>
         <div class="filter-group"><label>College</label><select id="f-college"><option value="">All</option></select></div>

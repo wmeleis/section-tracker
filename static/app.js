@@ -233,6 +233,9 @@ function syncButtonRows(){
     b.classList.remove('active-all','active-yes','active-no','active-notes');
     if(b.dataset.v===filters.resolved) b.classList.add(rmap[filters.resolved]);
   });
+  document.querySelectorAll('#level-row .proposal-btn').forEach(b=>{
+    b.classList.toggle('active-all', b.dataset.v===(filters.level||''));
+  });
 }
 
 function renderHead(){
@@ -962,9 +965,9 @@ async function checkAirtable(){
 
 // ---------- button-row + filter handlers ----------
 window.setResolved=v=>{ filters.resolved=(filters.resolved===v?'':v); renderAll(); };
+window.setLevel=v=>{ filters.level=(filters.level===v?'':v); renderAll(); };
 function bindControls(){
   $('#f-term').onchange=e=>{filters.term=e.target.value;renderAll();};
-  $('#f-level').onchange=e=>{filters.level=e.target.value;renderAll();};
   $('#f-modality').onchange=e=>{filters.modality=e.target.value;renderAll();};
   $('#f-special').onchange=e=>{filters.special=e.target.value;renderAll();};
   $('#f-college').onchange=e=>{filters.college=e.target.value;renderAll();};
@@ -973,9 +976,8 @@ function bindControls(){
   $('#f-search').oninput=e=>{filters.search=e.target.value;renderTable();};
 }
 function syncFilterControls(){
-  const te=$('#f-term'), lv=$('#f-level'), md=$('#f-modality'), cs=$('#f-college'), ca=$('#f-campus'), su=$('#f-subject'), se=$('#f-search');
+  const te=$('#f-term'), md=$('#f-modality'), cs=$('#f-college'), ca=$('#f-campus'), su=$('#f-subject'), se=$('#f-search');
   if(te) te.value=filters.term;
-  if(lv) lv.value=filters.level;
   if(md) md.value=filters.modality;
   const sp=$('#f-special'); if(sp) sp.value=filters.special;
   if(cs) cs.value=filters.college; if(ca) ca.value=filters.campus;
