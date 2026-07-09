@@ -26,6 +26,7 @@ import os
 import re
 import csv
 import json
+import difflib
 import datetime
 from collections import defaultdict
 
@@ -108,6 +109,43 @@ def _load_exclusions():
         return set()
 
 
+# Conservative merge thresholds — high enough to only catch truncation/abbreviation,
+# not genuinely-different topics that merely share words (e.g. "…and the law").
+_MERGE_PREFIX_MIN = 10   # a title that's a prefix of another merges only if >= this long
+_MERGE_RATIO = 0.90      # or char-similarity (difflib ratio) at/above this
+
+
+def _canon_map(topics):
+    """Union near-identical topic strings within one course; return {topic: canonical},
+    canonical = the longest (most complete) title in each group. Merge when one is a
+    prefix of the other (truncation) or their character-similarity >= _MERGE_RATIO."""
+    parent = {t: t for t in topics}
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]; x = parent[x]
+        return x
+    def union(a, b):
+        ra, rb = find(a), find(b)
+        if ra != rb:
+            parent[ra] = rb
+    for i in range(len(topics)):
+        for j in range(i + 1, len(topics)):
+            a, b = topics[i], topics[j]
+            short, lng = (a, b) if len(a) <= len(b) else (b, a)
+            if (len(short) >= _MERGE_PREFIX_MIN and lng.startswith(short)) or \
+               difflib.SequenceMatcher(None, a, b).ratio() >= _MERGE_RATIO:
+                union(a, b)
+    groups = defaultdict(list)
+    for t in topics:
+        groups[find(t)].append(t)
+    cmap = {}
+    for members in groups.values():
+        canon = max(members, key=lambda t: (len(t), t))
+        for m in members:
+            cmap[m] = canon
+    return cmap
+
+
 def build(csv_path=CSV_PATH):
     excl = _load_exclusions()
     is_st = defaultdict(bool)                    # code -> bool
@@ -134,7 +172,7 @@ def build(csv_path=CSV_PATH):
             topic = norm_topic(st or ct)
             crn = (r.get('CRN') or '').strip()
             seen[(code, topic)].add((term, crn))
-            m = meta.setdefault((code, topic, term, crn), {'instr': set(), 'enr': None, 'title': (st or ct)})
+            m = meta.setdefault((code, term, crn), {'instr': set(), 'enr': None, 'title': (st or ct)})
             fac = f"{(r.get('Faculty First Name') or '').strip()} {(r.get('Faculty Last Name') or '').strip()}".strip()
             if fac:
                 m['instr'].add(fac)
@@ -149,17 +187,29 @@ def build(csv_path=CSV_PATH):
 
     st_codes = sorted(c for c, v in is_st.items() if v and c not in excl)
     st_set = set(st_codes)
-    offerings = {}       # topic_key -> [{term, rank, instructor, enrolled}] most-recent-first
+
+    # Conservative fuzzy merge of near-identical topic titles WITHIN a course, so feed
+    # truncation ("…social"/"…socia") and abbreviations ("research methods"/"research
+    # met") count as ONE topic. `_canon_map` merges only clear cases (one title a prefix
+    # of the other, or >=0.90 character-similarity); genuinely different topics stay apart.
+    # Skips the empty-topic bucket (blank Section Title, ~28% — can't be attributed).
+    bycode = defaultdict(list)
+    for (code, topic) in seen:
+        if code in st_set and topic:
+            bycode[code].append(topic)
+    merged = defaultdict(set)   # (code, canonical topic) -> {(term, crn)}
+    for code, topics in bycode.items():
+        cmap = _canon_map(sorted(set(topics)))
+        for topic in topics:
+            merged[(code, cmap[topic])] |= seen[(code, topic)]
+
+    offerings = {}       # topic_key -> [{term, rank, instructor, enrolled, title}] most-recent-first
     crn_topic = {}       # "canon-term|crn" -> topic_key (exact per-section join)
-    for (code, topic), crns in seen.items():
-        # Skip the empty-topic bucket: rows with a blank Section Title (~28%) can't be
-        # attributed to a specific topic; a tracker section always has a real title.
-        if code not in st_set or not topic:
-            continue
+    for (code, topic), crns in merged.items():
         tk = f'{code}␟{topic}'
         lst = []
         for term, crn in crns:
-            m = meta.get((code, topic, term, crn), {})
+            m = meta.get((code, term, crn), {})
             lst.append({'term': term, 'rank': rank_int(term),
                         'instructor': '; '.join(sorted(m.get('instr') or [])),
                         'enrolled': m.get('enr'), 'title': m.get('title') or ''})
