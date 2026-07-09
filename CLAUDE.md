@@ -62,7 +62,8 @@ catalog-title scan misses. Two title fields in that file map onto the two jobs:
   absent from the file, then groups its `offerings` by term keeping only earlier terms:
 - `times_offered` (int, "Prior Terms" in the UI; blank when the topic didn't resolve) =
   **number of previous terms** the topic ran. `≥ 2` = 2+ prior terms (what the "Special
-  topics — 2+ prior offerings" team view filters — threshold is 2, not 3).
+  topics — 2+ prior terms" team view filters — threshold is 2, not 3). A top-bar **Prior
+  terms** dropdown (Any / 1+ / 2+ / 3+ / 5+, `filters.priorTerms`) filters on it too.
 - `previous_offerings` (JSON list, blank when none) = **one row per previous term**
   `{term, instructor(s), enrolled (term total), sections}`, most-recent-first. Stored as a
   section column, shown as a **"Previous offerings"** list in the row's detail panel
@@ -192,7 +193,7 @@ remains as buttons. There is no longer a modality "pipeline" tile bar.)
     An admin star/unstar on a team view persists `starred` back to the shared file
     (`pvStarById`). Shipped starred team views: **Live Cast courses**
     (Modality = Live Cast), **Live Cast — needs justification** (Live Cast AND
-    `has_notes = No`), and **Special topics — 2+ prior offerings**.
+    `has_notes = No`), and **Special topics — 2+ prior terms**.
 
 **Live Cast justifications live in the Notes field** (no dedicated column). For a
 Live Cast section the detail panel relabels "College notes" → **"Live Cast

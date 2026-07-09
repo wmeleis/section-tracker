@@ -10,7 +10,7 @@ let allSections = [];
 let lastFetch = '', refreshDate = '';
 let bakedPerTerm = null;     // per-term counts from the static payload (Console)
 // term is MULTI-select: an array of selected terms; [] means "all terms".
-const filters = { term:['Fall 2026'], college:'', campus:'', subject:'', modality:'', resolved:'', level:'', special:'', search:'' };
+const filters = { term:['Fall 2026'], college:'', campus:'', subject:'', modality:'', resolved:'', level:'', special:'', priorTerms:'', search:'' };
 let sort = { key:'course_code', dir:1 };
 const expanded = new Set();
 const TERM_ORDER = ['Fall 2026','Spring 2026','Summer 2026'];
@@ -231,6 +231,7 @@ function baseFiltered(skip){
       if(filters.special==='Y' && s.special_topics!=='Yes') return false;
       if(filters.special==='N' && s.special_topics==='Yes') return false;
     }
+    if(skip!=='prior' && filters.priorTerms && (+s.times_offered||0) < +filters.priorTerms) return false;
     if(skip!=='resolved' && filters.resolved){
       if(filters.resolved==='yes' && !s.modality_resolved) return false;
       if(filters.resolved==='no' && s.modality_resolved) return false;
@@ -594,7 +595,7 @@ async function persistTeamViews(){
 function _snapshotFilters(){ const s=Object.assign({}, filters); s.term=filters.term.slice(); return s; }
 function _applyFilters(f){
   f=f||{};
-  ['college','campus','subject','modality','resolved','level','special','search'].forEach(k=>{ filters[k]=f[k]||''; });
+  ['college','campus','subject','modality','resolved','level','special','priorTerms','search'].forEach(k=>{ filters[k]=f[k]||''; });
   // term is multi-select; accept an array or a legacy string ('' = all terms)
   filters.term = Array.isArray(f.term) ? f.term.slice() : (f.term ? [f.term] : []);
   syncFilterControls();
@@ -1008,6 +1009,7 @@ window.setTerm=v=>{
 function bindControls(){
   $('#f-modality').onchange=e=>{filters.modality=e.target.value;renderAll();};
   $('#f-special').onchange=e=>{filters.special=e.target.value;renderAll();};
+  $('#f-prior').onchange=e=>{filters.priorTerms=e.target.value;renderAll();};
   $('#f-college').onchange=e=>{filters.college=e.target.value;renderAll();};
   $('#f-campus').onchange=e=>{filters.campus=e.target.value;renderAll();};
   $('#f-subject').onchange=e=>{filters.subject=e.target.value;renderAll();};
@@ -1017,6 +1019,7 @@ function syncFilterControls(){
   const md=$('#f-modality'), cs=$('#f-college'), ca=$('#f-campus'), su=$('#f-subject'), se=$('#f-search');
   if(md) md.value=filters.modality;
   const sp=$('#f-special'); if(sp) sp.value=filters.special;
+  const pr=$('#f-prior'); if(pr) pr.value=filters.priorTerms;
   if(cs) cs.value=filters.college; if(ca) ca.value=filters.campus;
   if(su) su.value=filters.subject; if(se) se.value=filters.search;
 }
