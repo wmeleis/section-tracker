@@ -52,7 +52,7 @@
           "modality_resolved", "notes"
         ],
         "filters": {
-          "term": ["Spring 2026", "Fall 2026"], "college": "", "campus": "", "subject": "",
+          "term": ["Spring 2026", "Summer 2026", "Fall 2026"], "college": "", "campus": "", "subject": "",
           "modality": "", "resolved": "", "level": "", "search": ""
         },
         "tree": {

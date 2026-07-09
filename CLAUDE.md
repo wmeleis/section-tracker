@@ -215,8 +215,9 @@ remains as buttons. There is no longer a modality "pipeline" tile bar.)
     (`pvStarById`). Shipped starred team views: **Live Cast courses**
     (Modality = Live Cast), **Live Cast — needs justification** (Live Cast AND
     `has_notes = No`), and **Special topics — 2+ prior terms** (`special_topics=Y`
-    AND `times_offered>=2`, term scoped to **Spring 2026 + Fall 2026** — the two main
-    semesters — with the **Term** column shown so the two terms are distinguishable).
+    AND `times_offered>=2`, term scoped to **Spring 2026 + Summer 2026 + Fall 2026**
+    — the full current academic year — with the **Term** column shown so the terms are
+    distinguishable).
 
 **Live Cast justifications live in the Notes field** (no dedicated column). For a
 Live Cast section the detail panel relabels "College notes" → **"Live Cast
