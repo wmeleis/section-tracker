@@ -214,11 +214,13 @@ remains as buttons. There is no longer a modality "pipeline" tile bar.)
     An admin star/unstar on a team view persists `starred` back to the shared file
     (`pvStarById`). Shipped starred team views: **Live Cast courses**
     (Modality = Live Cast), **Live Cast — needs justification** (Live Cast AND
-    `has_notes = No`), and **Special topics — 2+ prior terms (Spring/Summer/Fall 2026)**
-    (`special_topics=Y`
-    AND `times_offered>=2`, term scoped to **Spring 2026 + Summer 2026 + Fall 2026**
-    — the full current academic year — with the **Term** column shown so the terms are
-    distinguishable).
+    `has_notes = No`), and **Special topics — 2+ prior terms (Spring/Summer/Fall 2026)**.
+    Its scope is expressed entirely as **filter-tree rules** (not the top-bar term
+    snapshot, so it's visible/editable in the Views modal): `term ∈ {Spring 2026,
+    Summer 2026, Fall 2026}` AND `special_topics = Y` AND `times_offered ≥ 2` — the full
+    current academic year — with the **Term** column shown so the terms are
+    distinguishable. (The term rule is currently a no-op superset since those are the only
+    three terms loaded, but it makes the intent explicit and future-proofs added terms.)
 
 **Live Cast justifications live in the Notes field** (no dedicated column). For a
 Live Cast section the detail panel relabels "College notes" → **"Live Cast

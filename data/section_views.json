@@ -52,13 +52,14 @@
           "modality_resolved", "notes"
         ],
         "filters": {
-          "term": ["Spring 2026", "Summer 2026", "Fall 2026"], "college": "", "campus": "", "subject": "",
+          "term": "", "college": "", "campus": "", "subject": "",
           "modality": "", "resolved": "", "level": "", "search": ""
         },
         "tree": {
           "type": "group",
           "conj": "all",
           "children": [
+            { "type": "rule", "field": "term", "op": "in", "value": ["Spring 2026", "Summer 2026", "Fall 2026"] },
             { "type": "rule", "field": "special_topics", "op": "in", "value": ["Y"] },
             { "type": "rule", "field": "times_offered", "op": ">=", "value": "2" }
           ]
