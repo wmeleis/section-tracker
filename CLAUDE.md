@@ -105,7 +105,13 @@ catalog-title scan misses. Two title fields in that file map onto the two jobs:
   distinct with no content signal ⇒ **Needs review** (de-facto-permanent course, or generic).
   Emitted in `historical_st.json` as `topic_class` (topic_key → class) + `topic_class_reason`;
   `fetch_and_parse` stamps each section's `topic_class` during the times-offered join
-  (`programs.sections.topic_class`, migrated in). Surfaced as the `defaultHidden` **Topic Type**
+  (`programs.sections.topic_class`, migrated in). **Direct override (`_is_title_only_shell`):**
+  during that stamp, any section whose *displayed* title equals its *catalog course title*
+  (`_norm_title`, case/punct-insensitive, no ST-prefix stripping) is forced to **Container
+  shell** — this catches verbatim section==course echoes the historical prefix-stripped test
+  missed (e.g. `PSYC 8402`/`INFO 7610`/`FINA 4526`/`MATH 7362`/`SUEN 6340` "…title == course
+  title"), while a genuine specific topic under the same course (e.g. `INTB 4983 "Global Health
+  Innovation"`) is left as-is. Surfaced as the `defaultHidden` **Topic Type**
   column + a `topic_class` select filter field. The **"Special topics — 2+ prior terms"** view
   adds a rule `topic_class ≠ Container shell`, so shells don't inflate the violation list.
   **`st_review_export.py`** writes `~/Downloads/special_topics_review_<date>.csv` — the current-AY

@@ -39,16 +39,20 @@ def main():
     for tk, s in seen.items():
         n = int(s['times_offered'])
         offs = OFF.get(tk, [])
+        ctitle = CT.get(s['course_code'], '') or s.get('course_title', '')
+        cls = s.get('topic_class', '') or CLASS.get(tk, '')   # section value carries the title-match override
+        why = ('section title matches the course title'
+               if fa._is_title_only_shell(s) else REASON.get(tk, ''))
         out.append({
-            'topic_class': CLASS.get(tk, '') or s.get('topic_class', ''),
+            'topic_class': cls,
             'offering_number': n + 1,          # this Spring/Summer/Fall 2026 run is the Nth
             'prior_terms': n,                  # distinct terms it ran before its own term
             'course': s['course_code'],
-            'course_title': CT.get(s['course_code'], '') or s.get('course_title', ''),
+            'course_title': ctitle,
             'topic_title': s['title'],
             'college': s.get('college', ''),
             'most_recent_prior_instructor': offs[0]['instructor'] if offs else '',
-            'why_classified': REASON.get(tk, ''),
+            'why_classified': why,
         })
     out.sort(key=lambda r: (_CLASS_ORDER.get(r['topic_class'], 9), -r['offering_number']))
 

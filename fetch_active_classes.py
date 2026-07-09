@@ -231,6 +231,23 @@ def _topic_key_for(sec):
     return cand if cand in _ST_OFFERINGS else None
 
 
+_TITLE_NORM_RE = re.compile(r'[^a-z0-9]+')
+
+
+def _norm_title(s):
+    """Light title normalizer (case / punctuation / whitespace) for the direct
+    'section title == course title' shell test — does NOT strip the ST prefix."""
+    return _TITLE_NORM_RE.sub(' ', (s or '').lower()).strip()
+
+
+def _is_title_only_shell(sec):
+    """A section whose title is just the course's catalog (shell) title names no
+    specific rotating topic -> container shell. Uses the section's own displayed
+    title and its catalog course title (the two columns shown in the review list)."""
+    ct = sec.get('course_title') or ''
+    return bool(ct) and _norm_title(sec.get('title')) == _norm_title(ct)
+
+
 # ---------------------------------------------------------------------------
 # Tableau REST
 # ---------------------------------------------------------------------------
@@ -486,6 +503,11 @@ def fetch_and_parse(use_cache=False):
             if not tk:
                 continue
             s['topic_class'] = _ST_TOPIC_CLASS.get(tk, '')
+            # Direct rule: section title == course (catalog) title -> container shell,
+            # overriding the historical classifier (which compares prefix-stripped
+            # historical titles and can miss verbatim section==course echoes).
+            if _is_title_only_shell(s):
+                s['topic_class'] = 'Container shell'
             sec_rank = _hist.rank_int(s['term'])
             by_term = {}
             for o in _ST_OFFERINGS.get(tk, []):
