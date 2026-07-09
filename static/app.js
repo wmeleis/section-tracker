@@ -9,7 +9,8 @@ const STATIC = !!window._staticMode;
 let allSections = [];
 let lastFetch = '', refreshDate = '';
 let bakedPerTerm = null;     // per-term counts from the static payload (Console)
-const filters = { term:'Fall 2026', college:'', campus:'', subject:'', modality:'', resolved:'', level:'', special:'', search:'' };
+// term is MULTI-select: an array of selected terms; [] means "all terms".
+const filters = { term:['Fall 2026'], college:'', campus:'', subject:'', modality:'', resolved:'', level:'', special:'', search:'' };
 let sort = { key:'course_code', dir:1 };
 const expanded = new Set();
 const TERM_ORDER = ['Fall 2026','Spring 2026','Summer 2026'];
@@ -106,9 +107,11 @@ async function load() {
   lastFetch = data.last_fetch || '';
   refreshDate = data.refresh_date || '';
   bakedPerTerm = data.per_term || null;
-  // default to the first available term if the saved default isn't present
+  // keep only selected terms that exist; if none remain, default to Fall 2026 (or the first)
   const terms = availableTerms();
-  if (filters.term && !terms.includes(filters.term)) filters.term = terms[0] || '';
+  if (!Array.isArray(filters.term)) filters.term = filters.term ? [filters.term] : [];
+  filters.term = filters.term.filter(t => terms.includes(t));
+  if (!filters.term.length && terms.length) filters.term = [terms.includes('Fall 2026') ? 'Fall 2026' : terms[0]];
   // Always-visible (everyone), same location/format as the program & student trackers:
   // "Updated: <mon d> at <time> ET" + "Build: <mon d, yyyy, time> ET".
   $('#last-updated').textContent = lastFetch ? ('Updated: ' +
@@ -184,8 +187,7 @@ function hideStaticOnlyHeader(){
 
 function uniq(key){ return [...new Set(allSections.map(s=>s[key]).filter(Boolean))].sort(); }
 function populateFilters(){
-  const te=$('#f-term');
-  if(te){ te.innerHTML=availableTerms().map(t=>`<option value="${esc(t)}">${esc(t)}</option>`).join('')+'<option value="">All terms</option>'; te.value=filters.term; }
+  populateTermButtons();
   const me=$('#f-modality');
   if(me){
     const present=uniq('instructional_method');
@@ -203,6 +205,15 @@ function fillSelect(sel, vals, labelFn){
   e.value=cur;
 }
 
+// Render the multi-select Term button row (All + one toggle per available term).
+function populateTermButtons(){
+  const row=$('#term-row'); if(!row) return;
+  const terms=availableTerms();
+  row.innerHTML='<span class="row-label">Term</span>'+
+    `<button class="proposal-btn" data-term="" onclick="setTerm('')">All terms</button>`+
+    terms.map(t=>`<button class="proposal-btn" data-term="${esc(t)}" onclick="setTerm('${esc(t).replace(/'/g,"\\'")}')">${esc(t)}</button>`).join('');
+}
+
 // ---------- filtering ----------
 function availableTerms(){
   const present=new Set(allSections.map(s=>s.term));
@@ -210,7 +221,7 @@ function availableTerms(){
 }
 function baseFiltered(skip){
   return allSections.filter(s=>{
-    if(skip!=='term' && filters.term && s.term!==filters.term) return false;
+    if(skip!=='term' && filters.term.length && !filters.term.includes(s.term)) return false;
     if(skip!=='college' && filters.college && s.college!==filters.college) return false;
     if(skip!=='campus' && filters.campus && s.campus!==filters.campus) return false;
     if(skip!=='subject' && filters.subject && s.subject!==filters.subject) return false;
@@ -247,6 +258,11 @@ function syncButtonRows(){
   });
   document.querySelectorAll('#level-row .proposal-btn').forEach(b=>{
     b.classList.toggle('active-all', b.dataset.v===(filters.level||''));
+  });
+  document.querySelectorAll('#term-row .proposal-btn').forEach(b=>{
+    const t=b.dataset.term;
+    const on = t==='' ? filters.term.length===0 : filters.term.includes(t);
+    b.classList.toggle('active-all', on);
   });
 }
 
@@ -575,10 +591,12 @@ async function persistTeamViews(){
 }
 
 // Snapshot / restore the top-bar filters (term is a real axis here, so it's in).
-function _snapshotFilters(){ return Object.assign({}, filters); }
+function _snapshotFilters(){ const s=Object.assign({}, filters); s.term=filters.term.slice(); return s; }
 function _applyFilters(f){
   f=f||{};
-  ['term','college','campus','subject','modality','resolved','level','special','search'].forEach(k=>{ filters[k]=f[k]||''; });
+  ['college','campus','subject','modality','resolved','level','special','search'].forEach(k=>{ filters[k]=f[k]||''; });
+  // term is multi-select; accept an array or a legacy string ('' = all terms)
+  filters.term = Array.isArray(f.term) ? f.term.slice() : (f.term ? [f.term] : []);
   syncFilterControls();
 }
 function _resolveViewCols(state){
@@ -941,7 +959,7 @@ function exportSectionsCsv(){
     return /[",\n]/.test(v)?`"${v.replace(/"/g,'""')}"`:v;
   }).join(',')).join('\n');
   const blob=new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'});
-  const term=(filters.term||'all').replace(/\s+/g,'_');
+  const term=(filters.term.length?filters.term.join('-'):'all').replace(/\s+/g,'_');
   const date=new Date().toISOString().slice(0,10);
   const fname=`sections_${term}_${date}.csv`;
   const url=URL.createObjectURL(blob);
@@ -981,8 +999,13 @@ async function checkAirtable(){
 // ---------- button-row + filter handlers ----------
 window.setResolved=v=>{ filters.resolved=(filters.resolved===v?'':v); renderAll(); };
 window.setLevel=v=>{ filters.level=(filters.level===v?'':v); renderAll(); };
+// Multi-select term: '' = All (clears to every term); a term toggles its membership.
+window.setTerm=v=>{
+  if(v===''){ filters.term=[]; }
+  else { const i=filters.term.indexOf(v); if(i>=0) filters.term.splice(i,1); else filters.term.push(v); }
+  renderAll();
+};
 function bindControls(){
-  $('#f-term').onchange=e=>{filters.term=e.target.value;renderAll();};
   $('#f-modality').onchange=e=>{filters.modality=e.target.value;renderAll();};
   $('#f-special').onchange=e=>{filters.special=e.target.value;renderAll();};
   $('#f-college').onchange=e=>{filters.college=e.target.value;renderAll();};
@@ -991,14 +1014,13 @@ function bindControls(){
   $('#f-search').oninput=e=>{filters.search=e.target.value;renderTable();};
 }
 function syncFilterControls(){
-  const te=$('#f-term'), md=$('#f-modality'), cs=$('#f-college'), ca=$('#f-campus'), su=$('#f-subject'), se=$('#f-search');
-  if(te) te.value=filters.term;
+  const md=$('#f-modality'), cs=$('#f-college'), ca=$('#f-campus'), su=$('#f-subject'), se=$('#f-search');
   if(md) md.value=filters.modality;
   const sp=$('#f-special'); if(sp) sp.value=filters.special;
   if(cs) cs.value=filters.college; if(ca) ca.value=filters.campus;
   if(su) su.value=filters.subject; if(se) se.value=filters.search;
 }
-window.clearFilters=()=>{ const term=filters.term; Object.keys(filters).forEach(k=>filters[k]=''); filters.term=term; syncFilterControls(); renderAll(); };
+window.clearFilters=()=>{ const term=filters.term.slice(); Object.keys(filters).forEach(k=>filters[k]=''); filters.term=term; syncFilterControls(); renderAll(); };
 
 function toast(msg){ const t=$('#toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(toast._t); toast._t=setTimeout(()=>t.classList.remove('show'),2600); }
 

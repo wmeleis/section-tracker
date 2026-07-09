@@ -68,6 +68,7 @@
       <button id="filter-toggle-btn" onclick="toggleFilters()">▸ Filters</button>
     </div>
     <div class="controls-section" id="controls-section">
+      <div class="button-row" id="term-row"><!-- multi-select term buttons injected by JS --></div>
       <div class="button-row" id="resolved-row">
         <span class="row-label">Resolved</span>
         <button class="proposal-btn active-all" data-v="" onclick="setResolved('')">All</button>
@@ -82,7 +83,6 @@
         <button class="proposal-btn" data-v="GR" onclick="setLevel('GR')">Graduate</button>
       </div>
       <div class="filters">
-        <div class="filter-group"><label>Term</label><select id="f-term"></select></div>
         <div class="filter-group"><label>Modality</label><select id="f-modality"></select></div>
         <div class="filter-group"><label>Special Topics<sup class="info-i" id="f-special-info">i</sup></label><select id="f-special"><option value="">All</option><option value="Y">Special topics only</option><option value="N">Not special topics</option></select></div>
         <div class="filter-group"><label>College</label><select id="f-college"><option value="">All</option></select></div>
