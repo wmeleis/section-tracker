@@ -65,6 +65,17 @@ const $ = s => document.querySelector(s);
 const el = (t,c,h) => { const e=document.createElement(t); if(c)e.className=c; if(h!=null)e.innerHTML=h; return e; };
 const esc = s => (s==null?'':String(s)).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
+// How "special topics" is defined — shown in the info-"i" bubble on the Special
+// Topics filter and view. (Definition + source only, per the info-bubble convention.)
+const ST_DEF = "A variable-content course whose specific topic changes each term — flagged when its catalog (shell) title is “Special Topics” / “Topics” (incl. Selected/Advanced Topics), or a section is titled “ST: …”. Source: the Registrar’s Historical Courses titles.";
+// Floating hover tooltip for .info-i superscripts (matches the student/program trackers).
+(function(){
+  const tip=()=>{ let t=document.getElementById('info-tip'); if(!t){ t=document.createElement('div'); t.id='info-tip'; document.body.appendChild(t); } return t; };
+  document.addEventListener('mouseover', e=>{ const el=e.target.closest&&e.target.closest('.info-i'); if(!el) return; const t=tip(); t.textContent=el.getAttribute('data-info')||''; t.style.display='block'; });
+  document.addEventListener('mousemove', e=>{ const t=document.getElementById('info-tip'); if(!t||t.style.display!=='block') return; const pad=14,w=t.offsetWidth,h=t.offsetHeight; let x=e.clientX+pad,y=e.clientY+pad; if(x+w>window.innerWidth-8)x=e.clientX-w-pad; if(y+h>window.innerHeight-8)y=e.clientY-h-pad; t.style.left=x+'px'; t.style.top=y+'px'; });
+  document.addEventListener('mouseout', e=>{ const el=e.target.closest&&e.target.closest('.info-i'); if(!el) return; const t=document.getElementById('info-tip'); if(t) t.style.display='none'; });
+})();
+
 // ── Visible-columns set (persisted; new cols default to visible unless hidden)
 const _COLS_LS = 'sectrk-cols', _COLS_KNOWN_LS = 'sectrk-cols-known';
 function _loadSectionCols(){
@@ -117,6 +128,7 @@ async function load() {
   hideStaticOnlyHeader();
   applyFiltersState();     // filters start collapsed on every load
   populateFilters();
+  { const fi=$('#f-special-info'); if(fi) fi.dataset.info=ST_DEF; }  // info-"i" bubble on the Special Topics filter
   // restore the last active view (if it still exists)
   let restore = null;
   try { restore = localStorage.getItem(_ACTIVE_LS); } catch(_){}
@@ -848,9 +860,10 @@ function renderViewTiles(){
   bar.innerHTML = label + tileViews.map(v=>{
     const cnt=countForView(v);
     const active=(v.id==='all')?(!activeViewId||activeViewId==='all'):(v.id===activeViewId);
+    const info = /special topics/i.test(v.name) ? `<sup class="info-i" data-info="${esc(ST_DEF)}" onclick="event.stopPropagation()">i</sup>` : '';
     return `<button class="pv-tile${active?' active':''}" onclick="applyView('${v.id}')" title="${esc(v.name)}">
       <span class="pv-tile-count">${typeof cnt==='number'?cnt.toLocaleString():cnt}</span>
-      <span class="pv-tile-label">${esc(v.name)}</span></button>`;
+      <span class="pv-tile-label">${esc(v.name)}${info}</span></button>`;
   }).join('');
 }
 
