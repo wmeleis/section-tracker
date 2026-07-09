@@ -54,7 +54,12 @@ def main():
             'most_recent_prior_instructor': offs[0]['instructor'] if offs else '',
             'why_classified': why,
         })
-    out.sort(key=lambda r: (_CLASS_ORDER.get(r['topic_class'], 9), -r['offering_number']))
+    # Container shells are NOT violations (a recurring container whose title names no
+    # specific rotating topic) — drop them from the list. What remains is the review
+    # queue: genuine Repeat topics + the ambiguous Needs-review middle.
+    shells = [r for r in out if r['topic_class'] == 'Container shell']
+    kept = [r for r in out if r['topic_class'] != 'Container shell']
+    kept.sort(key=lambda r: (-r['offering_number'], r['course']))  # worst repeat offenders first
 
     path = os.path.expanduser(
         '~/Downloads/special_topics_review_%s.csv' % datetime.date.today())
@@ -63,12 +68,13 @@ def main():
     with open(path, 'w', newline='') as f:
         w = csv.DictWriter(f, fieldnames=cols)
         w.writeheader()
-        w.writerows(out)
+        w.writerows(kept)
 
     from collections import Counter
-    dist = Counter(r['topic_class'] for r in out)
-    print(f'wrote {len(out)} topics -> {path}')
+    dist = Counter(r['topic_class'] for r in kept)
+    print(f'wrote {len(kept)} topics -> {path}')
     print('  ' + ', '.join(f'{k}: {v}' for k, v in sorted(dist.items())))
+    print(f'  (excluded {len(shells)} container shells)')
 
 
 if __name__ == '__main__':

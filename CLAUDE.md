@@ -115,9 +115,10 @@ catalog-title scan misses. Two title fields in that file map onto the two jobs:
   column + a `topic_class` select filter field. The **"Special topics — 2+ prior terms"** view
   adds a rule `topic_class ≠ Container shell`, so shells don't inflate the violation list.
   **`st_review_export.py`** writes `~/Downloads/special_topics_review_<date>.csv` — the current-AY
-  2+-prior set bucketed shell / review / repeat with the offering #, prior-term count, instructor,
-  and classification reason, to audit the exclusions. (Class counts across all ST topics
-  as of 2026-07-09: ~1073 Repeat, ~253 Needs review, ~182 Container shell.)
+  2+-prior candidates, **Container shells excluded** (they're not violations), i.e. Repeat topic +
+  Needs review only, sorted worst-offenders-first (highest offering #), with offering #, prior-term
+  count, catalog course title, topic title, instructor, and classification reason; prints the
+  excluded-shell count. ~65 rows (56 Repeat + 9 Needs review), ~36 shells excluded as of 2026-07-09.
 - **Refresh:** `fetch_historical.py` re-pulls the Historical Courses view (direct REST data
   export, no custom view) and rebuilds `historical_st.json` **daily** — gated ~20h, keep-
   last-good on any failure — wired into `run_update.py` and the local Update button;
