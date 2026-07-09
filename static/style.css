@@ -19,6 +19,9 @@ header{background:var(--surface);border-bottom:1px solid var(--border);padding:1
 .freshness-row .last-updated{font-size:11px;font-weight:400;color:#aab2bd;letter-spacing:normal;white-space:nowrap}
 header h1{font-size:20px;font-weight:700;color:var(--text)}
 .subtitle{font-size:13px;color:var(--text-secondary);margin-left:12px}
+.header-search{flex:1 1 260px;max-width:460px;min-width:170px}
+.header-search input{width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:6px;font-size:13px;color:var(--text);background:#fff}
+.header-search input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px rgba(59,130,246,.15)}
 .header-right{display:flex;align-items:center;gap:12px;flex:0 0 auto;flex-wrap:wrap}
 .badge-dot{font-size:12px;display:inline-flex;align-items:center;gap:5px;color:var(--text-secondary)}
 .badge-dot .dot{width:8px;height:8px;border-radius:50%;background:var(--pending)}

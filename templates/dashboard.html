@@ -18,6 +18,9 @@
         <span id="app-build" class="last-updated"></span>
       </div>
     </div>
+    <div class="header-search">
+      <input type="text" id="f-search" placeholder="Search course, title, CRN, faculty…">
+    </div>
     <div class="header-right">
       <button class="conn-btn" id="tableau-status" onclick="checkTableau()" title="Tableau (data source) connection — click to re-check"><span class="dot"></span><span id="tableau-status-label">Checking…</span></button>
       <button class="conn-btn" id="store-badge" onclick="checkAirtable()" title="Airtable (notes store) connection — click to re-check"><span class="dot"></span><span id="store-label">Checking…</span></button>
@@ -85,7 +88,6 @@
         <div class="filter-group"><label>College</label><select id="f-college"><option value="">All</option></select></div>
         <div class="filter-group"><label>Campus</label><select id="f-campus"><option value="">All</option></select></div>
         <div class="filter-group"><label>Subject</label><select id="f-subject"><option value="">All</option></select></div>
-        <div class="filter-group"><label>Search</label><input type="text" id="f-search" placeholder="course, title, CRN, faculty…"></div>
         <button class="header-secondary-btn" onclick="clearFilters()">Clear</button>
       </div>
     </div>
