@@ -77,10 +77,10 @@ body.filters-collapsed #controls-section{display:none}
 
 /* Filters */
 .filters{display:flex;gap:18px;align-items:center;flex-wrap:wrap}
-.filter-group{display:flex;align-items:center;gap:6px}
+.filter-group{display:flex;align-items:center;gap:6px;position:relative}
 .filter-group label{font-size:13px;font-weight:500;color:var(--text-secondary)}
-.filter-x{cursor:pointer;color:#ef4444;font-weight:700;font-size:11px;margin-left:2px;user-select:none;vertical-align:super;line-height:0}
-.filter-x:hover{color:#b91c1c}
+.filter-x{position:absolute;top:-7px;right:-4px;z-index:3;cursor:pointer;color:#000;font-weight:700;font-size:13px;line-height:1;user-select:none}
+.filter-x:hover{color:#555}
 .filter-x[hidden]{display:none}
 .filter-group select{padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;color:var(--text);background:#fff;min-width:130px}
 
