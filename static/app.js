@@ -297,6 +297,22 @@ window.msAll = (key) => {
   renderAll();
 };
 
+// Per-filter clear (the superscript × shown on each active filter's label).
+window.clearOneFilter = (key) => {
+  if (MS_KEYS.includes(key)) filters[key] = null;
+  else if (key === 'special') filters.special = '';
+  else if (key === 'prior') filters.priorTerms = '';
+  syncFilterControls(); renderAll();
+};
+// Show a filter's × only when it's active (a subset/none for multis; a set value for the
+// single selects). null (all) / '' (any) = inactive = hidden ×.
+function syncFilterX(){
+  const active = { college: filters.college!==null, campus: filters.campus!==null,
+    modality: filters.modality!==null, subject: filters.subject!==null,
+    special: filters.special!=='', prior: filters.priorTerms!=='' };
+  Object.keys(active).forEach(k => { const el=$('#fx-'+k); if(el) el.hidden = !active[k]; });
+}
+
 // Render the multi-select Term button row (All + one toggle per available term).
 function populateTermButtons(){
   const row=$('#term-row'); if(!row) return;
@@ -339,7 +355,7 @@ function baseFiltered(skip){
 const getFiltered = () => baseFiltered(null).filter(s => evalNode(s, appliedTree));
 
 // ---------- render ----------
-function renderAll(){ renderViewTiles(); syncButtonRows(); msSyncLabels(); renderHead(); renderTable(); }
+function renderAll(){ renderViewTiles(); syncButtonRows(); msSyncLabels(); syncFilterX(); renderHead(); renderTable(); }
 
 // button-row active-state sync
 function syncButtonRows(){

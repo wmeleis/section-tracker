@@ -83,12 +83,12 @@
         <button class="proposal-btn" data-v="GR" onclick="setLevel('GR')">Graduate</button>
       </div>
       <div class="filters">
-        <div class="filter-group"><label>College</label><div class="ms" id="ms-college"></div></div>
-        <div class="filter-group"><label>Campus</label><div class="ms" id="ms-campus"></div></div>
-        <div class="filter-group"><label>Modality</label><div class="ms" id="ms-modality"></div></div>
-        <div class="filter-group"><label>Special Topics<sup class="info-i" id="f-special-info">i</sup></label><select id="f-special"><option value="">All</option><option value="Y">Special topics only</option><option value="N">Not special topics</option></select></div>
-        <div class="filter-group"><label>Prior terms</label><select id="f-prior"><option value="">Any</option><option value="1">1+</option><option value="2">2+</option><option value="3">3+</option><option value="5">5+</option></select></div>
-        <div class="filter-group"><label>Subject</label><div class="ms" id="ms-subject"></div></div>
+        <div class="filter-group"><label>College<sup class="filter-x" id="fx-college" onclick="clearOneFilter('college')" title="Clear" hidden>×</sup></label><div class="ms" id="ms-college"></div></div>
+        <div class="filter-group"><label>Campus<sup class="filter-x" id="fx-campus" onclick="clearOneFilter('campus')" title="Clear" hidden>×</sup></label><div class="ms" id="ms-campus"></div></div>
+        <div class="filter-group"><label>Modality<sup class="filter-x" id="fx-modality" onclick="clearOneFilter('modality')" title="Clear" hidden>×</sup></label><div class="ms" id="ms-modality"></div></div>
+        <div class="filter-group"><label>Special Topics<sup class="info-i" id="f-special-info">i</sup><sup class="filter-x" id="fx-special" onclick="clearOneFilter('special')" title="Clear" hidden>×</sup></label><select id="f-special"><option value="">All</option><option value="Y">Special topics only</option><option value="N">Not special topics</option></select></div>
+        <div class="filter-group"><label>Prior terms<sup class="filter-x" id="fx-prior" onclick="clearOneFilter('prior')" title="Clear" hidden>×</sup></label><select id="f-prior"><option value="">Any</option><option value="1">1+</option><option value="2">2+</option><option value="3">3+</option><option value="5">5+</option></select></div>
+        <div class="filter-group"><label>Subject<sup class="filter-x" id="fx-subject" onclick="clearOneFilter('subject')" title="Clear" hidden>×</sup></label><div class="ms" id="ms-subject"></div></div>
         <button class="header-secondary-btn" onclick="clearFilters()">Clear</button>
       </div>
     </div>

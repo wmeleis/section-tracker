@@ -225,6 +225,13 @@ table; each row expands to section detail + Notes editor + Modality Resolved tog
 (Term, Level, and Modality were originally toggle/tile rows — the user moved them to
 dropdowns; only Resolved/Level remain as buttons. No modality "pipeline" tile bar.)
 
+**Per-filter clear ×.** Each of the six dropdown/multi filters (College, Campus, Modality,
+Subject, Special Topics, Prior terms) has a small red **superscript × on its label** (`.filter-x`,
+`#fx-<key>`) shown **only when that filter is active** (`syncFilterX`, called in `renderAll`):
+active = a multi at a subset/none (`!==null`), or a single select with a value (`!==''`).
+Clicking it (`clearOneFilter`) resets just that filter (multi→`null`=all, single→`''`) — the
+whole-row **Clear** button still resets everything.
+
 **Checkbox multi-select filters (`renderMulti` etc., College/Campus/Modality/Subject).**
 Each is a button (shows "All" / the one value / "N selected") opening a checkbox panel with
 per-option cross-filtered counts. **Tri-state** (`filters.<key>`): `null` = ALL (every box

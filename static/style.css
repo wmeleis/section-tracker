@@ -79,6 +79,9 @@ body.filters-collapsed #controls-section{display:none}
 .filters{display:flex;gap:18px;align-items:center;flex-wrap:wrap}
 .filter-group{display:flex;align-items:center;gap:6px}
 .filter-group label{font-size:13px;font-weight:500;color:var(--text-secondary)}
+.filter-x{cursor:pointer;color:#ef4444;font-weight:700;font-size:11px;margin-left:2px;user-select:none;vertical-align:super;line-height:0}
+.filter-x:hover{color:#b91c1c}
+.filter-x[hidden]{display:none}
 .filter-group select,.filter-group input{padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;color:var(--text);background:#fff;min-width:130px}
 .filter-group input{min-width:230px}
 
