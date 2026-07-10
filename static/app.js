@@ -10,7 +10,11 @@ let allSections = [];
 let lastFetch = '', refreshDate = '';
 let bakedPerTerm = null;     // per-term counts from the static payload (Console)
 // term is MULTI-select: an array of selected terms; [] means "all terms".
-const filters = { term:['Fall 2026'], college:'', campus:'', subject:'', modality:'', resolved:'', level:'', special:'', priorTerms:'', search:'' };
+// college/campus/modality/subject are MULTI-select. Tri-state: null = ALL (every box
+// checked, no filter — the default "start with all"); [] = NONE (nothing checked → shows
+// nothing); [a,b] = only those. term is multi ([] = all). resolved/level/special/priorTerms/
+// search stay single (mode/threshold/text controls).
+const filters = { term:['Fall 2026'], college:null, campus:null, subject:null, modality:null, resolved:'', level:'', special:'', priorTerms:'', search:'' };
 let sort = { key:'course_code', dir:1 };
 const expanded = new Set();
 // Chronological term rank (ascending: Winter<Spring<Summer<Fall within a year),
@@ -196,22 +200,102 @@ function hideStaticOnlyHeader(){
 function uniq(key){ return [...new Set(allSections.map(s=>s[key]).filter(Boolean))].sort(); }
 function populateFilters(){
   populateTermButtons();
-  const me=$('#f-modality');
-  if(me){
-    const present=uniq('instructional_method');
-    const ordered=MOD_ORDER.filter(m=>present.includes(m)).concat(present.filter(m=>!MOD_ORDER.includes(m)));
-    me.innerHTML='<option value="">All</option>'+ordered.map(m=>`<option value="${esc(m)}">${esc(modShort(m))}</option>`).join('');
-    me.value=filters.modality;
+  MS_KEYS.forEach(renderMulti);
+}
+
+// ---------- checkbox multi-select filters (College / Campus / Modality / Subject) ----------
+// Empty selection = ALL (no filter), so each "starts with all". Panel opens on click; each
+// option shows a cross-filtered count. Label: "All" / the single value / "N selected".
+const MS_KEYS = ['college', 'campus', 'modality', 'subject'];
+const _MS = {
+  college:  { field: 'college',              order: null,      opt: v => abbr(v) + ' — ' + v, short: abbr },
+  campus:   { field: 'campus',               order: null,      opt: v => v,                   short: v => v },
+  modality: { field: 'instructional_method', order: MOD_ORDER, opt: v => modShort(v),         short: modShort },
+  subject:  { field: 'subject',              order: null,      opt: v => v,                   short: v => v },
+};
+function msValues(key){
+  const cfg = _MS[key];
+  const vals = [...new Set(allSections.map(s => s[cfg.field]).filter(Boolean))];
+  if (cfg.order) {
+    const o = cfg.order;
+    vals.sort((a, b) => ((o.indexOf(a) < 0 ? 99 : o.indexOf(a)) - (o.indexOf(b) < 0 ? 99 : o.indexOf(b))) || a.localeCompare(b));
+  } else {
+    vals.sort((a, b) => a.localeCompare(b));
   }
-  fillSelect('#f-college', uniq('college'), abbr);
-  fillSelect('#f-campus', uniq('campus'));
-  fillSelect('#f-subject', uniq('subject'));
+  return vals;
 }
-function fillSelect(sel, vals, labelFn){
-  const e=$(sel), cur=e.value;
-  e.innerHTML='<option value="">All</option>'+vals.map(v=>`<option value="${esc(v)}">${esc(labelFn?labelFn(v)+' — '+v:v)}</option>`).join('');
-  e.value=cur;
+function msCounts(key){
+  const cfg = _MS[key], m = {};
+  baseFiltered(key).forEach(s => { const v = s[cfg.field]; if (v) m[v] = (m[v] || 0) + 1; });
+  return m;
 }
+function msLabel(key){
+  const a = filters[key];
+  if (a === null) return 'All';
+  if (a.length === 0) return 'None';
+  if (a.length === 1) return _MS[key].short(a[0]);
+  return a.length + ' selected';
+}
+function renderMulti(key){
+  const host = $('#ms-' + key); if (!host) return;
+  host.innerHTML =
+    `<button type="button" class="ms-btn" onclick="toggleMsPanel('${key}',event)">` +
+      `<span class="ms-label" id="ms-label-${key}">${esc(msLabel(key))}</span><span class="ms-caret">▾</span></button>` +
+    `<div class="ms-panel" id="ms-panel-${key}" hidden></div>`;
+}
+// A value is checked when the filter is "all" (null) or the value is in the chosen set.
+function msChecked(key, v){ const a = filters[key]; return a === null || a.includes(v); }
+function msRenderPanel(key){
+  const cfg = _MS[key], panel = $('#ms-panel-' + key); if (!panel) return;
+  const counts = msCounts(key);
+  const rows = msValues(key).map(v =>
+    `<label><input type="checkbox" ${msChecked(key, v) ? 'checked' : ''} ` +
+    `onchange="toggleMsValue('${key}','${_escJs(v)}')"><span class="ms-opt">${esc(cfg.opt(v))}</span>` +
+    `<span class="ms-count">${counts[v] || 0}</span></label>`).join('');
+  panel.innerHTML =
+    `<label class="ms-all"><input type="checkbox" id="ms-all-${key}" onchange="msAll('${key}')"> All</label>${rows}`;
+  msSyncAllCb(key);
+}
+// The header "All" checkbox: checked when all (null), unchecked when none ([]),
+// indeterminate when a partial subset is chosen.
+function msSyncAllCb(key){
+  const cb = $('#ms-all-' + key); if (!cb) return;
+  const a = filters[key], n = msValues(key).length;
+  cb.checked = (a === null);
+  cb.indeterminate = (a !== null && a.length > 0 && a.length < n);
+}
+function msSyncLabels(){ MS_KEYS.forEach(k => { const el = $('#ms-label-' + k); if (el) el.textContent = msLabel(k); }); }
+function closeAllMsPanels(){ document.querySelectorAll('.ms-panel').forEach(p => p.hidden = true); }
+window.toggleMsPanel = (key, ev) => {
+  if (ev) ev.stopPropagation();
+  const p = $('#ms-panel-' + key); if (!p) return;
+  const wasHidden = p.hidden; closeAllMsPanels();
+  if (wasHidden) { msRenderPanel(key); p.hidden = false; }
+};
+window.toggleMsValue = (key, v) => {
+  // Native checkbox already toggled. Expand null (all) to a concrete list on first uncheck;
+  // collapse back to null when every value ends up checked. No list rebuild (keeps scroll).
+  let a = filters[key];
+  if (a === null) a = msValues(key).slice();
+  const i = a.indexOf(v);
+  if (i >= 0) a.splice(i, 1); else a.push(v);
+  if (a.length === msValues(key).length) a = null;
+  filters[key] = a;
+  msSyncAllCb(key);   // header All box: all/none/indeterminate
+  renderAll();
+};
+// "All" toggle: select-all when not currently all, else unselect-all. Update the option
+// checkboxes IN PLACE (no innerHTML rebuild — rebuilding would detach the just-clicked
+// checkbox mid-event and trip the outside-click close handler).
+window.msAll = (key) => {
+  const cb = $('#ms-all-' + key);
+  const selectAll = !!(cb && cb.checked);
+  filters[key] = selectAll ? null : [];
+  const panel = $('#ms-panel-' + key);
+  if (panel) panel.querySelectorAll('label:not(.ms-all) input').forEach(inp => { inp.checked = selectAll; });
+  msSyncAllCb(key);
+  renderAll();
+};
 
 // Render the multi-select Term button row (All + one toggle per available term).
 function populateTermButtons(){
@@ -229,10 +313,10 @@ function availableTerms(){
 function baseFiltered(skip){
   return allSections.filter(s=>{
     if(skip!=='term' && filters.term.length && !filters.term.includes(s.term)) return false;
-    if(skip!=='college' && filters.college && s.college!==filters.college) return false;
-    if(skip!=='campus' && filters.campus && s.campus!==filters.campus) return false;
-    if(skip!=='subject' && filters.subject && s.subject!==filters.subject) return false;
-    if(skip!=='modality' && filters.modality && s.instructional_method!==filters.modality) return false;
+    if(skip!=='college' && filters.college!==null && !filters.college.includes(s.college)) return false;
+    if(skip!=='campus' && filters.campus!==null && !filters.campus.includes(s.campus)) return false;
+    if(skip!=='subject' && filters.subject!==null && !filters.subject.includes(s.subject)) return false;
+    if(skip!=='modality' && filters.modality!==null && !filters.modality.includes(s.instructional_method)) return false;
     if(skip!=='level' && filters.level && s.level!==filters.level) return false;
     if(skip!=='special' && filters.special){
       if(filters.special==='Y' && s.special_topics!=='Yes') return false;
@@ -255,7 +339,7 @@ function baseFiltered(skip){
 const getFiltered = () => baseFiltered(null).filter(s => evalNode(s, appliedTree));
 
 // ---------- render ----------
-function renderAll(){ renderViewTiles(); syncButtonRows(); renderHead(); renderTable(); }
+function renderAll(){ renderViewTiles(); syncButtonRows(); msSyncLabels(); renderHead(); renderTable(); }
 
 // button-row active-state sync
 function syncButtonRows(){
@@ -600,13 +684,21 @@ async function persistTeamViews(){
 }
 
 // Snapshot / restore the top-bar filters (term is a real axis here, so it's in).
-function _snapshotFilters(){ const s=Object.assign({}, filters); s.term=filters.term.slice(); return s; }
-function _applyFilters(f){
+function _snapshotFilters(){
+  const s=Object.assign({}, filters); s.term=filters.term.slice();
+  MS_KEYS.forEach(k=>{ s[k]=filters[k]===null?null:filters[k].slice(); });
+  return s;
+}
+function _applyFilters(f, silent){
   f=f||{};
-  ['college','campus','subject','modality','resolved','level','special','priorTerms','search'].forEach(k=>{ filters[k]=f[k]||''; });
-  // term is multi-select; accept an array or a legacy string ('' = all terms)
+  ['resolved','level','special','priorTerms','search'].forEach(k=>{ filters[k]=f[k]||''; });
+  // multi-selects: null/''/absent = ALL; a string value = that one; an array = as-is.
+  const msVal = v => (v===''||v==null) ? null : (Array.isArray(v)?v.slice():[v]);
+  MS_KEYS.forEach(k=>{ filters[k]=msVal(f[k]); });
   filters.term = Array.isArray(f.term) ? f.term.slice() : (f.term ? [f.term] : []);
-  syncFilterControls();
+  // silent = don't touch the DOM controls (used by tile-count save/apply/restore, which
+  // must not rebuild the multi-select panels and close an open one).
+  if(!silent) syncFilterControls();
 }
 function _resolveViewCols(state){
   if(!state) return null;
@@ -876,10 +968,10 @@ function renderViewTiles(){
   function countForView(v){
     try {
       const savedSnap=_snapshotFilters(), savedTree=appliedTree;
-      _applyFilters((v&&v.state&&v.state.filters)||{});
+      _applyFilters((v&&v.state&&v.state.filters)||{}, true);
       appliedTree=(v&&v.state&&v.state.tree)?v.state.tree:null;
       const n=getFiltered().length;
-      _applyFilters(savedSnap); appliedTree=savedTree;
+      _applyFilters(savedSnap, true); appliedTree=savedTree;
       return n;
     } catch(_){ return '—'; }
   }
@@ -1015,23 +1107,21 @@ window.setTerm=v=>{
   renderAll();
 };
 function bindControls(){
-  $('#f-modality').onchange=e=>{filters.modality=e.target.value;renderAll();};
   $('#f-special').onchange=e=>{filters.special=e.target.value;renderAll();};
   $('#f-prior').onchange=e=>{filters.priorTerms=e.target.value;renderAll();};
-  $('#f-college').onchange=e=>{filters.college=e.target.value;renderAll();};
-  $('#f-campus').onchange=e=>{filters.campus=e.target.value;renderAll();};
-  $('#f-subject').onchange=e=>{filters.subject=e.target.value;renderAll();};
   $('#f-search').oninput=e=>{filters.search=e.target.value;renderTable();};
+  document.addEventListener('click', e=>{ if(!document.contains(e.target)) return; if(!e.target.closest('.ms')) closeAllMsPanels(); });
 }
 function syncFilterControls(){
-  const md=$('#f-modality'), cs=$('#f-college'), ca=$('#f-campus'), su=$('#f-subject'), se=$('#f-search');
-  if(md) md.value=filters.modality;
+  MS_KEYS.forEach(renderMulti);
   const sp=$('#f-special'); if(sp) sp.value=filters.special;
   const pr=$('#f-prior'); if(pr) pr.value=filters.priorTerms;
-  if(cs) cs.value=filters.college; if(ca) ca.value=filters.campus;
-  if(su) su.value=filters.subject; if(se) se.value=filters.search;
+  const se=$('#f-search'); if(se) se.value=filters.search;
 }
-window.clearFilters=()=>{ const term=filters.term.slice(); Object.keys(filters).forEach(k=>filters[k]=''); filters.term=term; syncFilterControls(); renderAll(); };
+window.clearFilters=()=>{ const term=filters.term.slice();
+  Object.keys(filters).forEach(k=>{ filters[k]=''; }); filters.term=term;
+  MS_KEYS.forEach(k=>{ filters[k]=null; });   // null = all
+  syncFilterControls(); renderAll(); };
 
 function toast(msg){ const t=$('#toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(toast._t); toast._t=setTimeout(()=>t.classList.remove('show'),2600); }
 

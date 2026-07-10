@@ -217,14 +217,26 @@ only Views / Console / Update data).
    template appends `?v={{ cb }}`. These two tags sit outside the `app-root…toast` block that
    `export_static` extracts, so the static build is unaffected (it cache-busts on its own).
 
-One **Resolved** button row (All/Unresolved/Resolved/Has notes) · a row of
-**dropdown filters**: Term (default Fall 2026; "All terms" option), Level
-(Grad/Undergrad), Modality (Instructional Method), Special Topics (All / only /
-not — uses the title-derived `special_topics` flag), College, Campus, Subject,
-plus Search · sortable expandable table; each row expands to section detail +
-Notes editor + Modality Resolved toggle. (Term, Level, and Modality were all
-originally toggle/tile rows — the user moved them to dropdowns; only Resolved
-remains as buttons. There is no longer a modality "pipeline" tile bar.)
+One **Resolved** button row (All/Unresolved/Resolved/Has notes) · Level (Grad/Undergrad)
+· a row of filters: Term (multi-select buttons), **College, Campus, Modality, Subject
+(checkbox multi-selects)**, Special Topics (All / only / not — single, the title-derived
+`special_topics` flag), Prior terms (single threshold), plus Search · sortable expandable
+table; each row expands to section detail + Notes editor + Modality Resolved toggle.
+(Term, Level, and Modality were originally toggle/tile rows — the user moved them to
+dropdowns; only Resolved/Level remain as buttons. No modality "pipeline" tile bar.)
+
+**Checkbox multi-select filters (`renderMulti` etc., College/Campus/Modality/Subject).**
+Each is a button (shows "All" / the one value / "N selected") opening a checkbox panel with
+per-option cross-filtered counts. **Tri-state** (`filters.<key>`): `null` = ALL (every box
+checked, no filter — the default, so it "starts with all"); `[]` = NONE (nothing checked →
+shows nothing); `[a,b]` = only those (OR semantics in `baseFiltered`). A sticky **"All"**
+header checkbox toggles select-all (→ null) / unselect-all (→ []) and shows *indeterminate*
+for a partial subset. Toggling one option updates in place (no panel rebuild → keeps scroll);
+`toggleMsValue` expands `null`→concrete list on first uncheck and collapses back to `null`
+when all end up checked. **Gotcha:** `_applyFilters` ends with `syncFilterControls()` which
+rebuilds these panels, so the tile-count path (`countForView`) must call `_applyFilters(f, /*silent*/true)`
+or it closes an open panel on every `renderAll`. Views snapshot the tri-state (`null` or array);
+legacy string filter values (`""` = all, `"X"` = `["X"]`) are accepted on load.
 
 **Header tools (ported from the program tracker):**
 - **★ Views** — full saved-Views system: a filter-tree builder modal (recursive

@@ -82,6 +82,20 @@ body.filters-collapsed #controls-section{display:none}
 .filter-group select,.filter-group input{padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;color:var(--text);background:#fff;min-width:130px}
 .filter-group input{min-width:230px}
 
+/* checkbox multi-select filters */
+.ms{position:relative;display:inline-block}
+.ms-btn{display:flex;align-items:center;gap:8px;justify-content:space-between;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;color:var(--text);background:#fff;min-width:130px;cursor:pointer}
+.ms-btn:hover{border-color:var(--accent)}
+.ms-caret{color:var(--text-secondary);font-size:11px}
+.ms-label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px}
+.ms-panel{position:absolute;top:calc(100% + 4px);left:0;z-index:60;background:#fff;border:1px solid var(--border);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.12);max-height:300px;overflow:auto;min-width:220px;padding:4px}
+.ms-panel[hidden]{display:none}
+.ms-all{position:sticky;top:0;background:#fff;font-weight:600;border-bottom:1px solid var(--border);margin-bottom:2px}
+.ms-panel label{display:flex;align-items:center;gap:7px;padding:4px 6px;font-size:13px;color:var(--text);cursor:pointer;border-radius:5px}
+.ms-panel label:hover{background:#f1f5f9}
+.ms-opt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ms-count{margin-left:auto;color:var(--text-secondary);font-size:11px;padding-left:10px}
+
 .table-toolbar{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;margin:14px 2px 10px;flex-wrap:wrap}
 .table-actions{display:flex;gap:10px;align-items:center;margin-left:auto}
 .summary{font-size:13px;color:var(--text-secondary)}
