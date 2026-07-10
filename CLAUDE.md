@@ -244,6 +244,15 @@ when all end up checked. **Gotcha:** `_applyFilters` ends with `syncFilterContro
 rebuilds these panels, so the tile-count path (`countForView`) must call `_applyFilters(f, /*silent*/true)`
 or it closes an open panel on every `renderAll`. Views snapshot the tri-state (`null` or array);
 legacy string filter values (`""` = all, `"X"` = `["X"]`) are accepted on load.
+**CSS gotcha (fixed):** the panel option boxes are `<input>`s deep inside `.filter-group`, so the
+old `.filter-group input{min-width:230px;border;padding}` rule (for the since-moved in-row search
+box) rendered every checkbox as a 230px bordered box. That rule is removed — `.filter-group` styles
+`select` only; the header search has its own `.header-search input`.
+
+**Searchable column picker (⊞ Columns).** `_rebuildColDropdown` prepends a sticky
+`#col-picker-search` box; `filterColPicker`/`_applyColFilter` show/hide `.portfolio-col-check`
+rows by substring on each column's label (`data-label`). Query resets each time the picker opens;
+Select All/Unselect All rebuild but re-apply the query.
 
 **Header tools (ported from the program tracker):**
 - **★ Views** — full saved-Views system: a filter-tree builder modal (recursive

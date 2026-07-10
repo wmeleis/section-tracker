@@ -82,8 +82,7 @@ body.filters-collapsed #controls-section{display:none}
 .filter-x{cursor:pointer;color:#ef4444;font-weight:700;font-size:11px;margin-left:2px;user-select:none;vertical-align:super;line-height:0}
 .filter-x:hover{color:#b91c1c}
 .filter-x[hidden]{display:none}
-.filter-group select,.filter-group input{padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;color:var(--text);background:#fff;min-width:130px}
-.filter-group input{min-width:230px}
+.filter-group select{padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;color:var(--text);background:#fff;min-width:130px}
 
 /* checkbox multi-select filters */
 .ms{position:relative;display:inline-block}
@@ -153,7 +152,7 @@ tr.detail-row td{background:#fafbfc;padding:0;border-left:4px solid var(--accent
 .toast.show{opacity:1;transform:none}
 .spin{display:inline-block;width:13px;height:13px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px}
 @keyframes sp{to{transform:rotate(360deg)}}
-@media(max-width:760px){.detail{grid-template-columns:1fr}.filter-group input{min-width:150px}}
+@media(max-width:760px){.detail{grid-template-columns:1fr}}
 
 /* ════════════════════════════════════════════════════════════════════════
    Ported from the Program tracker: refresh feedback, Columns picker,
@@ -183,6 +182,8 @@ tr.detail-row td{background:#fafbfc;padding:0;border-left:4px solid var(--accent
 .portfolio-col-check{display:flex;align-items:center;gap:8px;padding:5px 10px;cursor:pointer;border-radius:4px;font-size:.88em;color:#334155;white-space:nowrap;user-select:none}
 .portfolio-col-check:hover{background:#f8fafc}
 .portfolio-col-check input[type=checkbox]{cursor:pointer;accent-color:var(--accent)}
+.portfolio-col-search{position:sticky;top:0;width:calc(100% - 8px);margin:2px 4px 6px;padding:6px 9px;border:1px solid var(--border);border-radius:6px;font-size:13px;color:var(--text);background:#fff;box-sizing:border-box}
+.portfolio-col-search:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px rgba(59,130,246,.15)}
 .portfolio-col-selectall{display:flex;gap:6px;padding:4px 8px 6px;border-bottom:1px solid var(--border);margin-bottom:4px}
 .portfolio-col-selectall button{flex:1;font-size:.8em;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:#f8fafc;color:#475569;cursor:pointer}
 .portfolio-col-selectall button:hover{background:#e2e8f0}

@@ -524,25 +524,39 @@ async function saveResolvedField(s, val){
 // ══════════════════════════════════════════════════════════════════════════
 // Columns picker
 // ══════════════════════════════════════════════════════════════════════════
+let _colPickerQuery='';
 function toggleSectionColPicker(e){
   e.stopPropagation();
   const dd=$('#section-col-dropdown'); if(!dd) return;
   if(dd.classList.contains('open')){ dd.classList.remove('open'); return; }
+  _colPickerQuery='';           // fresh search each time it opens
   _rebuildColDropdown(dd);
   dd.classList.add('open');
+  const s=$('#col-picker-search'); if(s) s.focus();
 }
 function _rebuildColDropdown(dd){
   dd.innerHTML =
-    `<div class="portfolio-col-selectall">
+    `<input type="text" class="portfolio-col-search" id="col-picker-search" placeholder="Search columns…"
+            value="${esc(_colPickerQuery)}" oninput="filterColPicker(this.value)"
+            onclick="event.stopPropagation()">
+     <div class="portfolio-col-selectall">
         <button onclick="toggleAllSectionCols(true)">Select All</button>
         <button onclick="toggleAllSectionCols(false)">Unselect All</button>
      </div>` +
     SECTION_COLUMNS.map(c=>`
-      <label class="portfolio-col-check">
+      <label class="portfolio-col-check" data-label="${esc(c.label.toLowerCase())}">
         <input type="checkbox" ${sectionVisibleCols.has(c.key)?'checked':''}
                onchange="toggleSectionCol('${c.key}',this.checked)">
         ${esc(c.label)}
       </label>`).join('');
+  if(_colPickerQuery) _applyColFilter();
+}
+window.filterColPicker=(q)=>{ _colPickerQuery=q||''; _applyColFilter(); };
+function _applyColFilter(){
+  const q=_colPickerQuery.trim().toLowerCase();
+  document.querySelectorAll('#section-col-dropdown .portfolio-col-check').forEach(el=>{
+    el.style.display = (!q || (el.getAttribute('data-label')||'').includes(q)) ? '' : 'none';
+  });
 }
 function toggleSectionCol(key, vis){
   if(vis) sectionVisibleCols.add(key); else sectionVisibleCols.delete(key);
