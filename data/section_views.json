@@ -14,7 +14,13 @@
           "term": "", "level": "", "resolved": "", "college": "", "campus": "",
           "subject": "", "modality": "Live Cast", "search": ""
         },
-        "tree": null
+        "tree": {
+          "type": "group",
+          "conj": "all",
+          "children": [
+            { "type": "rule", "field": "term", "op": "in", "value": ["Fall 2026"] }
+          ]
+        }
       }
     },
     {
@@ -35,6 +41,7 @@
           "type": "group",
           "conj": "all",
           "children": [
+            { "type": "rule", "field": "term", "op": "in", "value": ["Fall 2026"] },
             { "type": "rule", "field": "has_notes", "op": "in", "value": ["N"] }
           ]
         }

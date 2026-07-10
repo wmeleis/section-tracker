@@ -51,7 +51,7 @@ const SECTION_COLUMNS = [
   { key:'course_code', label:'Course' },
   { key:'section',     label:'Sec' },
   { key:'title',       label:'Title' },
-  { key:'term',        label:'Term',    defaultHidden:true },
+  { key:'term',        label:'Term' },
   { key:'college',     label:'College', fmt:abbr },
   { key:'campus',      label:'Campus' },
   { key:'instructional_method', label:'Modality' },

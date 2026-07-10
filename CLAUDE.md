@@ -241,8 +241,10 @@ remains as buttons. There is no longer a modality "pipeline" tile bar.)
     so a user's later un-star sticks) — so an admin-starred team view appears as a
     tile for all users (incl. colleges on the static site), like the student page.
     An admin star/unstar on a team view persists `starred` back to the shared file
-    (`pvStarById`). Shipped starred team views: **Live Cast courses**
-    (Modality = Live Cast), **Live Cast — needs justification** (Live Cast AND
+    (`pvStarById`). All shipped team views carry an explicit **`term` filter-tree rule**
+    (so the term scope is visible/editable in the Views modal, not just the top-bar snapshot).
+    Shipped starred team views: **Live Cast courses** (`term ∈ {Fall 2026}` AND Modality =
+    Live Cast), **Live Cast — needs justification** (`term ∈ {Fall 2026}` AND Live Cast AND
     `has_notes = No`), and **Special topics — 2+ prior terms (Spring/Summer/Fall 2026)**.
     Its scope is expressed entirely as **filter-tree rules** (not the top-bar term
     snapshot, so it's visible/editable in the Views modal): `term ∈ {Spring 2026,
@@ -282,6 +284,13 @@ the next 30-min firing retries — this fixes the old `StartCalendarInterval` 06
 where a single morning failure (e.g. the network not being up yet, as on 2026-07-09)
 left the site stale until the next day. After the day's first success, later firings are
 cheap no-ops (date check + exit). `data/last_success_date` is gitignored (runtime state).
+
+**Local server keepalive (`launchd` `com.sectiontracker.server`, `launchd/com.sectiontracker.server.plist`).**
+Runs `python3 app.py` (the Flask dashboard/API on **:5055**) with `RunAtLoad` + `KeepAlive`, so
+`localhost:5055` starts on login and relaunches automatically if it exits/crashes (modeled on the
+program tracker's `com.programtracker.server`). Logs to `data/server.log`. This is separate from the
+`com.sectiontracker.update` refresh agent — the server just *serves*; the update agent pulls/builds/
+deploys. Before it existed the local site had to be started by hand and died with the shell.
 
 ## Security tradeoff (note)
 The Airtable token (read+write to the base) is embedded in the encrypted payload,
