@@ -1,5 +1,7 @@
-# secrets — never commit
+# secrets — never commit (credentials live in the project dir, gitignored)
 data/tableau_pat.json
+data/airtable_token
+.env
 
 # generated / local data
 data/*.db
@@ -12,6 +14,9 @@ __pycache__/
 
 # docs/ is published to the gh-pages branch by deploy.py, never committed to main
 docs/
+
+# generated reports (kept in the project data store, not committed)
+data/reports/
 
 # logs
 data/*.log

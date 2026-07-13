@@ -10,6 +10,30 @@ A dashboard for analyzing **Fall 2026 course sections** — primarily **modality
 - **Repo:** https://github.com/wmeleis/section-tracker (public; data is encrypted)
 - **Local admin:** `python3 app.py` → http://localhost:5055 (Modality Resolved editable here)
 
+## Project data & documentation organization
+This CLAUDE.md is the **authoritative** documentation — complete enough to understand, operate,
+and recreate the project. Keep it in sync with every code change. The `~/.claude` memory for this
+project is a thin pointer here, not a second source of truth. All persistent **data** lives in the
+project's `data/` store (feeds, DB, generated reports) — never in `~/Downloads`, `~/.claude`, or
+system temp. **Credentials** live in gitignored files inside `data/` (below), so the project is
+self-contained, not only in the macOS Keychain. Section/faculty/enrollment data is public directory
+info (already published on the gated static site); there is no student PII in this project.
+
+## Credentials
+Both are **gitignored** (see `.gitignore`) and must never be committed — the repo is public.
+- **Tableau PAT** → `data/tableau_pat.json` — `{"token_name","token_secret","site":…}`. Used by
+  `fetch_active_classes.py` / `fetch_historical.py` for the Registrar Tableau REST API. **Sign-in is
+  pinned to the `Registrar` site in code** (the JSON's `site` key points elsewhere — ignored). Create
+  a PAT at Tableau → My Account Settings → Personal Access Tokens; this is the same PAT the Retention
+  Section Tracker uses.
+- **Airtable PAT** → `data/airtable_token` (single-line file, `chmod 600`). Resolved by
+  `notes_store._token()` in order: **`data/airtable_token` → `AIRTABLE_TOKEN` env → macOS Keychain
+  (`security -s airtable-sections -a token`, legacy fallback)**. Needs read+write scope on base
+  `appPpmcDzhL2BllHu`. To (re)create from the Keychain copy:
+  `security find-generic-password -s airtable-sections -a token -w > data/airtable_token && chmod 600 data/airtable_token`.
+- **Generated reports** (e.g. `st_review_export.py`) are written to **`data/reports/`** (gitignored),
+  not `~/Downloads`.
+
 ## Data source — Tableau "Active Classes" (Registrar site)
 The view is gated behind empty Subject Code + Class College multi-selects plus a
 term parameter, so a plain REST export returns nothing. The owner saved one shared
@@ -114,7 +138,7 @@ catalog-title scan misses. Two title fields in that file map onto the two jobs:
   Innovation"`) is left as-is. Surfaced as the `defaultHidden` **Topic Type**
   column + a `topic_class` select filter field. The **"Special topics — 2+ prior terms"** view
   adds a rule `topic_class ≠ Container shell`, so shells don't inflate the violation list.
-  **`st_review_export.py`** writes `~/Downloads/special_topics_review_<date>.csv` — the current-AY
+  **`st_review_export.py`** writes `data/reports/special_topics_review_<date>.csv` — the current-AY
   2+-prior candidates, **Container shells excluded** (they're not violations), i.e. Repeat topic +
   Needs review only, sorted worst-offenders-first (highest offering #), with the current-AY
   term(s) it runs in (`current_terms`, e.g. "Spring 2026; Fall 2026"), offering #, prior-term
@@ -161,8 +185,8 @@ Airtable notes are live-read, so **not** a source. Dismissal is keyed by the sta
 (`localStorage['sectrk-srcbanner-dismissed']`) so a new/worse staleness re-appears.
 
 ## Editable overlay — Airtable (`notes_store.py`)
-Base `appPpmcDzhL2BllHu`, table `tblUbDvuKPudNy6d8`. Token in **Keychain**
-(`security … -s airtable-sections -a token`). Fields: `CRN`, `Term`, `Course`,
+Base `appPpmcDzhL2BllHu`, table `tblUbDvuKPudNy6d8`. Token in **`data/airtable_token`**
+(env / Keychain fallback — see **Credentials** above). Fields: `CRN`, `Term`, `Course`,
 `College`, `Notes`, `Modality Resolved` (Yes/No), `Updated By`. Notes are keyed
 on **(CRN, Term)** — the upsert merges on `['CRN','Term']` and self-heals to
 `['CRN']` if the `Term` field is missing (but multi-term notes need the `Term`

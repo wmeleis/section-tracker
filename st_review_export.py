@@ -1,9 +1,12 @@
-"""st_review_export.py — special-topics policy review list -> ~/Downloads.
+"""st_review_export.py — special-topics policy review list -> data/reports/.
 
 Buckets every special topic offered in the current academic year (Spring/Summer/Fall
 2026) with 2+ prior terms into Container shell / Needs review / Repeat topic (the shell
 classifier in build_historical_st.classify_topic), with the evidence for each row so the
 exclusions can be audited before they're trusted. Run: python3 st_review_export.py
+
+Output stays in the project data store (data/reports/, gitignored), not ~/Downloads —
+see CLAUDE.md → project data & documentation organization.
 """
 import os
 import csv
@@ -69,8 +72,9 @@ def main():
     kept = [r for r in out if r['topic_class'] != 'Container shell']
     kept.sort(key=lambda r: (-r['offering_number'], r['course']))  # worst repeat offenders first
 
-    path = os.path.expanduser(
-        '~/Downloads/special_topics_review_%s.csv' % datetime.date.today())
+    reports_dir = os.path.join(fa.HERE, 'data', 'reports')
+    os.makedirs(reports_dir, exist_ok=True)
+    path = os.path.join(reports_dir, 'special_topics_review_%s.csv' % datetime.date.today())
     cols = ['topic_class', 'current_terms', 'offering_number', 'prior_terms', 'course',
             'course_title', 'topic_title', 'college', 'most_recent_prior_instructor',
             'why_classified']

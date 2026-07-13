@@ -24,6 +24,7 @@ import urllib.error
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 LOCAL_PATH = os.path.join(HERE, 'data', 'notes_local.json')
+TOKEN_PATH = os.path.join(HERE, 'data', 'airtable_token')   # project-dir credential (gitignored)
 
 AIRTABLE_BASE  = 'appPpmcDzhL2BllHu'
 AIRTABLE_TABLE = 'tblUbDvuKPudNy6d8'
@@ -42,14 +43,29 @@ _avail_cache = None  # None=unknown, True/False once probed
 
 
 def _token():
+    """Airtable PAT, resolved in order so the project is self-contained but the
+    Keychain still works as a fallback:
+      1. data/airtable_token  (project-dir credential file, gitignored — the source of truth)
+      2. AIRTABLE_TOKEN env var
+      3. macOS Keychain  security -s airtable-sections -a token  (legacy fallback)
+    See CLAUDE.md → Credentials for how to (re)create the file."""
     global _token_cache
     if _token_cache is None:
+        _token_cache = ''
         try:
-            _token_cache = subprocess.check_output(
-                ['security', 'find-generic-password', '-s', KEYCHAIN_SERVICE, '-a', 'token', '-w'],
-                stderr=subprocess.DEVNULL).decode().strip()
+            with open(TOKEN_PATH) as f:
+                _token_cache = f.read().strip()
         except Exception:
-            _token_cache = ''
+            pass
+        if not _token_cache:
+            _token_cache = (os.environ.get('AIRTABLE_TOKEN') or '').strip()
+        if not _token_cache:
+            try:
+                _token_cache = subprocess.check_output(
+                    ['security', 'find-generic-password', '-s', KEYCHAIN_SERVICE, '-a', 'token', '-w'],
+                    stderr=subprocess.DEVNULL).decode().strip()
+            except Exception:
+                _token_cache = ''
     return _token_cache
 
 
